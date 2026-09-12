@@ -42,6 +42,8 @@ namespace PD2ModelParser.UI {
             animationFiles = new FileBrowserControl();
             objectFile = new FileBrowserControl();
             outputBox = new FileBrowserControl();
+            outputBox.SaveMode = true;
+            outputBox.Filter = "Diesel Model (*.model)|*.model";
             baseModelFileBrowser = new FileBrowserControl();
             importTransformsBox = new System.Windows.Forms.CheckBox();
             SuspendLayout();

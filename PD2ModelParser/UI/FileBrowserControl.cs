@@ -91,12 +91,7 @@ namespace PD2ModelParser.UI {
 
                 if (SaveMode)
                 {
-                    DirectoryInfo info = Directory.GetParent(text);
-                    if (!info.Exists)
-                    {
-                        _allSelected.Clear();
-                        return _allSelected;
-                    }
+                    return _allSelected;
                 }
                 else
                 {
