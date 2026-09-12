@@ -52,14 +52,14 @@ namespace PD2ModelParser.Sections
         public override void StreamWriteData(BinaryWriter outstream)
         {
             base.StreamWriteData(outstream);
-            outstream.Write(this.ProbablyRootBone.SectionId);
+            outstream.Write(this.ProbablyRootBone != null ? this.ProbablyRootBone.SectionId : 0u);
             outstream.Write(this.count);
 
             SectionUtils.CheckLength(count, Objects);
             SectionUtils.CheckLength(count, rotations);
 
             foreach (var item in this.Objects)
-                outstream.Write(item.SectionId);
+                outstream.Write(item != null ? item.SectionId : 0u);
             foreach (Matrix4x4 matrix in this.rotations)
             {
                 outstream.Write(matrix);
@@ -85,7 +85,7 @@ namespace PD2ModelParser.Sections
             }
 
             return base.ToString() +
-                   " object3D_section_id: " + this.ProbablyRootBone.SectionId +
+                   " object3D_section_id: " + (this.ProbablyRootBone != null ? this.ProbablyRootBone.SectionId.ToString() : "0") +
                    " count: " + this.Objects.Count + " objects:[ " + objects_string + " ]" +
                    " rotations count: " + this.rotations.Count + " rotations:[ " + rotations_string + " ]" +
                    " global_skin_transform: " + this.global_skin_transform +
