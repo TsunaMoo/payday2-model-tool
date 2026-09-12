@@ -41,10 +41,4 @@
     <PlatformTarget>x64</PlatformTarget>
     <PreBuildEvent>cd /d "C:\Users\floof\source\repos\payday2-model-tool" &amp;&amp; "C:\Program Files\Git\bin\bash.exe" "gen-version.sh" "$(ConfigurationName)"</PreBuildEvent>
   </PropertyGroup>
-  <ItemGroup>
-    <!-- Copy the file preserving its relative path so the output will contain hashlist\hashlist -->
-    <None Include="hashlist\hashlist">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
 </Project>

@@ -9,7 +9,7 @@ namespace PD2ModelParser
     partial class Form1
     {
 
-        private FolderBrowserDialog folderBrowserDialog1;
+        private FolderBrowserDialog folderBrowserDialog;
 
         /// <summary>
         /// Required designer variable.
@@ -37,18 +37,18 @@ namespace PD2ModelParser
         /// </summary>
         private void InitializeComponent()
         {
-            folderBrowserDialog1 = new FolderBrowserDialog();
+            folderBrowserDialog = new FolderBrowserDialog();
             objectsTab = new TabPage();
             objectsPanel = new PD2ModelParser.UI.ObjectsPanel();
             exportTab = new TabPage();
-            exportPanel1 = new PD2ModelParser.UI.ExportPanel();
+            exportPanel = new PD2ModelParser.UI.ExportPanel();
             importTab = new TabPage();
             importPanel = new PD2ModelParser.UI.ImportPanel();
             mainTabs = new TabControl();
             hashTab = new TabPage();
+            hashPanel = new PD2ModelParser.UI.HashPanel();
             helpTab = new TabPage();
             helpPanel = new PD2ModelParser.UI.HelpPanel();
-            hashPanel1 = new PD2ModelParser.UI.HashPanel();
             objectsTab.SuspendLayout();
             exportTab.SuspendLayout();
             importTab.SuspendLayout();
@@ -84,7 +84,7 @@ namespace PD2ModelParser
             // exportTab
             // 
             exportTab.BackColor = SystemColors.ControlLight;
-            exportTab.Controls.Add(exportPanel1);
+            exportTab.Controls.Add(exportPanel);
             exportTab.Location = new Point(4, 24);
             exportTab.Margin = new Padding(4, 3, 4, 3);
             exportTab.Name = "exportTab";
@@ -93,19 +93,19 @@ namespace PD2ModelParser
             exportTab.TabIndex = 1;
             exportTab.Text = "Export";
             // 
-            // exportPanel1
+            // exportPanel
             // 
-            exportPanel1.BackColor = SystemColors.ControlLight;
-            exportPanel1.Dock = DockStyle.Fill;
-            exportPanel1.Font = new Font("Segoe UI", 9F);
-            exportPanel1.ForeColor = SystemColors.ControlText;
-            exportPanel1.Location = new Point(4, 3);
-            exportPanel1.Margin = new Padding(5, 3, 5, 3);
-            exportPanel1.MinimumSize = new Size(0, 157);
-            exportPanel1.Name = "exportPanel1";
-            exportPanel1.Padding = new Padding(9);
-            exportPanel1.Size = new Size(768, 388);
-            exportPanel1.TabIndex = 14;
+            exportPanel.BackColor = SystemColors.ControlLight;
+            exportPanel.Dock = DockStyle.Fill;
+            exportPanel.Font = new Font("Segoe UI", 9F);
+            exportPanel.ForeColor = SystemColors.ControlText;
+            exportPanel.Location = new Point(4, 3);
+            exportPanel.Margin = new Padding(5, 3, 5, 3);
+            exportPanel.MinimumSize = new Size(0, 157);
+            exportPanel.Name = "exportPanel";
+            exportPanel.Padding = new Padding(9);
+            exportPanel.Size = new Size(768, 388);
+            exportPanel.TabIndex = 14;
             // 
             // importTab
             // 
@@ -151,13 +151,20 @@ namespace PD2ModelParser
             // hashTab
             // 
             hashTab.BackColor = SystemColors.ControlLight;
-            hashTab.Controls.Add(hashPanel1);
+            hashTab.Controls.Add(hashPanel);
             hashTab.Location = new Point(4, 24);
             hashTab.Name = "hashTab";
             hashTab.Padding = new Padding(3);
             hashTab.Size = new Size(776, 394);
             hashTab.TabIndex = 4;
             hashTab.Text = "Hashlist";
+            // 
+            // hashPanel
+            // 
+            hashPanel.Location = new Point(0, 0);
+            hashPanel.Name = "hashPanel";
+            hashPanel.Size = new Size(780, 403);
+            hashPanel.TabIndex = 1;
             // 
             // helpTab
             // 
@@ -180,13 +187,6 @@ namespace PD2ModelParser
             helpPanel.Padding = new Padding(8);
             helpPanel.Size = new Size(776, 395);
             helpPanel.TabIndex = 0;
-            // 
-            // hashPanel1
-            // 
-            hashPanel1.Location = new Point(0, 0);
-            hashPanel1.Name = "hashPanel1";
-            hashPanel1.Size = new Size(780, 403);
-            hashPanel1.TabIndex = 1;
             // 
             // Form1
             // 
@@ -214,13 +214,13 @@ namespace PD2ModelParser
         private TabPage objectsTab;
         private UI.ObjectsPanel objectsPanel;
         private TabPage exportTab;
-        private UI.ExportPanel exportPanel1;
+        private UI.ExportPanel exportPanel;
         private TabPage importTab;
         private UI.ImportPanel importPanel;
         private TabControl mainTabs;
         private TabPage hashTab;
         private TabPage helpTab;
         private UI.HelpPanel helpPanel;
-        private UI.HashPanel hashPanel1;
+        private UI.HashPanel hashPanel;
     }
 }

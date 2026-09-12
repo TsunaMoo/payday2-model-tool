@@ -9,7 +9,7 @@ namespace PD2ModelParser.UI
 {
     public partial class HashPanel : UserControl
     {
-        private readonly string localHashlistPath = Path.Combine(AppContext.BaseDirectory, "hashlist", "hashlist");
+        private readonly string localHashlistPath = Path.Combine(AppContext.BaseDirectory, "hashlist");
 
         public HashPanel()
         {
@@ -55,6 +55,7 @@ namespace PD2ModelParser.UI
 
         private async Task FetchButtonClickedAsync()
         {
+
             var url = textBox1.Text?.Trim();
             if (string.IsNullOrEmpty(url))
             {
