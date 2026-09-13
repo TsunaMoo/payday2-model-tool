@@ -60,18 +60,6 @@ namespace PD2ModelParser
         }
         public static readonly FileTypeInfo ObjUV1 = new ObjType1();
 
-        class DaeType : FileTypeInfo
-        {
-            public override string Extension => "dae";
-            public override string Name => "Collada (Deprecated)";
-            public override bool CanExport => true;
-            public override bool CanImport => false;
-            public override void Import(FullModelData data, string path, bool createModels, Func<string, Sections.Object3D> parentFinder, IOptionReceiver options)
-                => throw new Exception("Importing DAE files is not supported.");
-            public override string Export(FullModelData data, string path) => ColladaExporter.ExportFile(data, path);
-        }
-        public static readonly FileTypeInfo Dae = new DaeType();
-
         class GltfType : FileTypeInfo
         {
             public override string Extension => "gltf";
@@ -112,7 +100,6 @@ namespace PD2ModelParser
             FileTypeInfo.ObjUV0,
             FileTypeInfo.ObjUV1,
             FileTypeInfo.Animation,
-            FileTypeInfo.Dae
         };
     }
 }

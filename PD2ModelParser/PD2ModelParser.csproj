@@ -42,5 +42,6 @@
     <ApplicationIcon>modeltool.ico</ApplicationIcon>
     <StartupObject />
     <PlatformTarget>x64</PlatformTarget>
+    <AssemblyName>DieselModelTool</AssemblyName>
   </PropertyGroup>
 </Project>
