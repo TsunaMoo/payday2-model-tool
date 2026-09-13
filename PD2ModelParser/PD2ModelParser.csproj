@@ -39,6 +39,5 @@
     <ApplicationIcon />
     <StartupObject />
     <PlatformTarget>x64</PlatformTarget>
-    <PreBuildEvent>cd /d "C:\Users\floof\source\repos\payday2-model-tool" &amp;&amp; "C:\Program Files\Git\bin\bash.exe" "gen-version.sh" "$(ConfigurationName)"</PreBuildEvent>
   </PropertyGroup>
 </Project>
