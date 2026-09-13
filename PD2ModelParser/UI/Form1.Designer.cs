@@ -37,6 +37,7 @@ namespace PD2ModelParser
         /// </summary>
         private void InitializeComponent()
         {
+            ComponentResourceManager resources = new ComponentResourceManager(typeof(Form1));
             folderBrowserDialog = new FolderBrowserDialog();
             objectsTab = new TabPage();
             objectsPanel = new PD2ModelParser.UI.ObjectsPanel();
@@ -64,7 +65,7 @@ namespace PD2ModelParser
             objectsTab.Location = new Point(4, 24);
             objectsTab.Margin = new Padding(4, 3, 4, 3);
             objectsTab.Name = "objectsTab";
-            objectsTab.Size = new Size(794, 377);
+            objectsTab.Size = new Size(790, 377);
             objectsTab.TabIndex = 3;
             objectsTab.Text = "Objects";
             // 
@@ -90,7 +91,7 @@ namespace PD2ModelParser
             exportTab.Margin = new Padding(4, 3, 4, 3);
             exportTab.Name = "exportTab";
             exportTab.Padding = new Padding(4, 3, 4, 3);
-            exportTab.Size = new Size(794, 377);
+            exportTab.Size = new Size(790, 377);
             exportTab.TabIndex = 1;
             exportTab.Text = "Export";
             // 
@@ -103,7 +104,7 @@ namespace PD2ModelParser
             exportPanel.Location = new Point(3, 3);
             exportPanel.Margin = new Padding(0);
             exportPanel.MaximumSize = new Size(786, 371);
-            exportPanel.MinimumSize = new Size(786, 371);
+            exportPanel.MinimumSize = new Size(786, 157);
             exportPanel.Name = "exportPanel";
             exportPanel.Size = new Size(786, 371);
             exportPanel.TabIndex = 14;
@@ -156,7 +157,7 @@ namespace PD2ModelParser
             hashTab.Location = new Point(4, 24);
             hashTab.Name = "hashTab";
             hashTab.Padding = new Padding(3);
-            hashTab.Size = new Size(794, 377);
+            hashTab.Size = new Size(790, 377);
             hashTab.TabIndex = 4;
             hashTab.Text = "Hashlist";
             // 
@@ -177,7 +178,7 @@ namespace PD2ModelParser
             helpTab.Location = new Point(4, 24);
             helpTab.Name = "helpTab";
             helpTab.Padding = new Padding(3);
-            helpTab.Size = new Size(794, 377);
+            helpTab.Size = new Size(790, 377);
             helpTab.TabIndex = 5;
             helpTab.Text = "Help";
             helpTab.UseVisualStyleBackColor = true;
@@ -202,10 +203,10 @@ namespace PD2ModelParser
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(826, 431);
             Controls.Add(mainTabs);
+            Icon = (Icon)resources.GetObject("$this.Icon");
             Margin = new Padding(4, 3, 4, 3);
             MinimumSize = new Size(842, 470);
             Name = "Form1";
-            ShowIcon = false;
             Text = "Diesel Model Tool v1.03";
             Load += Form1_Load;
             objectsTab.ResumeLayout(false);
