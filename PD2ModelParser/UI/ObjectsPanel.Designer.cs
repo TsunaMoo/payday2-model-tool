@@ -28,159 +28,165 @@ namespace PD2ModelParser.UI
         /// </summary>
         private void InitializeComponent()
         {
+            components = new System.ComponentModel.Container();
             System.Windows.Forms.Label lblModel;
             System.Windows.Forms.Label lblScript;
-            this.showScriptChanges = new System.Windows.Forms.CheckBox();
-            this.btnReload = new System.Windows.Forms.Button();
-            this.treeView = new System.Windows.Forms.TreeView();
-            this.propertyGrid1 = new System.Windows.Forms.PropertyGrid();
-            this.scriptFile = new PD2ModelParser.UI.FileBrowserControl();
-            this.modelFile = new PD2ModelParser.UI.FileBrowserControl();
-            this.splitContainer1 = new System.Windows.Forms.SplitContainer();
-            this.btnSave = new System.Windows.Forms.Button();
+            showScriptChanges = new System.Windows.Forms.CheckBox();
+            btnReload = new System.Windows.Forms.Button();
+            treeView = new System.Windows.Forms.TreeView();
+            propertyGrid1 = new System.Windows.Forms.PropertyGrid();
+            scriptFile = new FileBrowserControl();
+            modelFile = new FileBrowserControl();
+            splitContainer1 = new System.Windows.Forms.SplitContainer();
+            btnSave = new System.Windows.Forms.Button();
             lblModel = new System.Windows.Forms.Label();
             lblScript = new System.Windows.Forms.Label();
-            ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
-            this.splitContainer1.Panel1.SuspendLayout();
-            this.splitContainer1.Panel2.SuspendLayout();
-            this.splitContainer1.SuspendLayout();
-            this.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)splitContainer1).BeginInit();
+            splitContainer1.Panel1.SuspendLayout();
+            splitContainer1.Panel2.SuspendLayout();
+            splitContainer1.SuspendLayout();
+            SuspendLayout();
             // 
             // lblModel
             // 
             lblModel.AutoSize = true;
-            lblModel.Location = new System.Drawing.Point(23, 8);
+            lblModel.Location = new System.Drawing.Point(27, 9);
+            lblModel.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             lblModel.Name = "lblModel";
-            lblModel.Size = new System.Drawing.Size(69, 13);
+            lblModel.Size = new System.Drawing.Size(75, 15);
             lblModel.TabIndex = 2;
             lblModel.Text = "Select Model";
             // 
             // lblScript
             // 
             lblScript.AutoSize = true;
-            lblScript.Location = new System.Drawing.Point(25, 37);
+            lblScript.Location = new System.Drawing.Point(29, 43);
+            lblScript.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             lblScript.Name = "lblScript";
-            lblScript.Size = new System.Drawing.Size(67, 13);
+            lblScript.Size = new System.Drawing.Size(71, 15);
             lblScript.TabIndex = 3;
             lblScript.Text = "Select Script";
             // 
             // showScriptChanges
             // 
-            this.showScriptChanges.AutoSize = true;
-            this.showScriptChanges.Checked = true;
-            this.showScriptChanges.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.showScriptChanges.Location = new System.Drawing.Point(98, 61);
-            this.showScriptChanges.Name = "showScriptChanges";
-            this.showScriptChanges.Size = new System.Drawing.Size(128, 17);
-            this.showScriptChanges.TabIndex = 4;
-            this.showScriptChanges.Text = "Show Script Changes";
-            this.showScriptChanges.UseVisualStyleBackColor = true;
-            this.showScriptChanges.CheckedChanged += new System.EventHandler(this.showScriptChanges_CheckedChanged);
+            showScriptChanges.AutoSize = true;
+            showScriptChanges.Checked = true;
+            showScriptChanges.CheckState = System.Windows.Forms.CheckState.Checked;
+            showScriptChanges.Location = new System.Drawing.Point(114, 70);
+            showScriptChanges.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            showScriptChanges.Name = "showScriptChanges";
+            showScriptChanges.Size = new System.Drawing.Size(137, 19);
+            showScriptChanges.TabIndex = 4;
+            showScriptChanges.Text = "Show Script Changes";
+            showScriptChanges.UseVisualStyleBackColor = true;
+            showScriptChanges.CheckedChanged += showScriptChanges_CheckedChanged;
             // 
             // btnReload
             // 
-            this.btnReload.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.btnReload.Location = new System.Drawing.Point(508, 61);
-            this.btnReload.Name = "btnReload";
-            this.btnReload.Size = new System.Drawing.Size(108, 23);
-            this.btnReload.TabIndex = 5;
-            this.btnReload.Text = "Reload";
-            this.btnReload.UseVisualStyleBackColor = true;
-            this.btnReload.Click += new System.EventHandler(this.btnReload_Click);
+            btnReload.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            btnReload.Location = new System.Drawing.Point(579, 70);
+            btnReload.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            btnReload.Name = "btnReload";
+            btnReload.Size = new System.Drawing.Size(126, 27);
+            btnReload.TabIndex = 5;
+            btnReload.Text = "Reload";
+            btnReload.UseVisualStyleBackColor = true;
+            btnReload.Click += btnReload_Click;
             // 
             // treeView
             // 
-            this.treeView.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.treeView.Location = new System.Drawing.Point(0, 0);
-            this.treeView.Name = "treeView";
-            this.treeView.Size = new System.Drawing.Size(383, 163);
-            this.treeView.TabIndex = 6;
-            this.treeView.NodeMouseClick += new System.Windows.Forms.TreeNodeMouseClickEventHandler(this.treeView_NodeMouseClick);
+            treeView.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+            treeView.Location = new System.Drawing.Point(0, 0);
+            treeView.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            treeView.Name = "treeView";
+            treeView.Size = new System.Drawing.Size(437, 283);
+            treeView.TabIndex = 6;
+            treeView.NodeMouseClick += treeView_NodeMouseClick;
             // 
             // propertyGrid1
             // 
-            this.propertyGrid1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.propertyGrid1.Location = new System.Drawing.Point(0, 0);
-            this.propertyGrid1.Name = "propertyGrid1";
-            this.propertyGrid1.Size = new System.Drawing.Size(226, 163);
-            this.propertyGrid1.TabIndex = 7;
+            propertyGrid1.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+            propertyGrid1.BackColor = System.Drawing.SystemColors.Control;
+            propertyGrid1.Location = new System.Drawing.Point(0, 0);
+            propertyGrid1.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            propertyGrid1.Name = "propertyGrid1";
+            propertyGrid1.Size = new System.Drawing.Size(259, 283);
+            propertyGrid1.TabIndex = 7;
             // 
             // scriptFile
             // 
-            this.scriptFile.AllowDrop = true;
-            this.scriptFile.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-            this.scriptFile.Filter = "Model Script (*.mscript)|*.mscript";
-            this.scriptFile.Location = new System.Drawing.Point(98, 32);
-            this.scriptFile.Name = "scriptFile";
-            this.scriptFile.SaveMode = false;
-            this.scriptFile.Size = new System.Drawing.Size(518, 23);
-            this.scriptFile.TabIndex = 1;
-            this.scriptFile.FileSelected += new System.EventHandler(this.fileBrowserControl2_FileSelected);
+            scriptFile.AllowDrop = true;
+            scriptFile.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+            scriptFile.Location = new System.Drawing.Point(114, 37);
+            scriptFile.Margin = new System.Windows.Forms.Padding(5, 3, 5, 3);
+            scriptFile.Name = "scriptFile";
+            scriptFile.Size = new System.Drawing.Size(590, 27);
+            scriptFile.TabIndex = 1;
+            scriptFile.FileSelected += fileBrowserControl2_FileSelected;
             // 
             // modelFile
             // 
-            this.modelFile.AllowDrop = true;
-            this.modelFile.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-            this.modelFile.Filter = "Diesel Model (*.model)|*.model";
-            this.modelFile.Location = new System.Drawing.Point(98, 3);
-            this.modelFile.Name = "modelFile";
-            this.modelFile.SaveMode = false;
-            this.modelFile.Size = new System.Drawing.Size(518, 23);
-            this.modelFile.TabIndex = 0;
-            this.modelFile.FileSelected += new System.EventHandler(this.fileBrowserControl1_FileSelected);
+            modelFile.AllowDrop = true;
+            modelFile.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+            modelFile.Location = new System.Drawing.Point(114, 3);
+            modelFile.Margin = new System.Windows.Forms.Padding(5, 3, 5, 3);
+            modelFile.Name = "modelFile";
+            modelFile.Size = new System.Drawing.Size(590, 27);
+            modelFile.TabIndex = 0;
+            modelFile.FileSelected += fileBrowserControl1_FileSelected;
             // 
             // splitContainer1
             // 
-            this.splitContainer1.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-            this.splitContainer1.Location = new System.Drawing.Point(3, 90);
-            this.splitContainer1.Name = "splitContainer1";
+            splitContainer1.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+            splitContainer1.Location = new System.Drawing.Point(4, 104);
+            splitContainer1.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            splitContainer1.Name = "splitContainer1";
             // 
             // splitContainer1.Panel1
             // 
-            this.splitContainer1.Panel1.Controls.Add(this.treeView);
+            splitContainer1.Panel1.Controls.Add(treeView);
             // 
             // splitContainer1.Panel2
             // 
-            this.splitContainer1.Panel2.Controls.Add(this.propertyGrid1);
-            this.splitContainer1.Size = new System.Drawing.Size(613, 163);
-            this.splitContainer1.SplitterDistance = 383;
-            this.splitContainer1.TabIndex = 8;
+            splitContainer1.Panel2.Controls.Add(propertyGrid1);
+            splitContainer1.Size = new System.Drawing.Size(701, 283);
+            splitContainer1.SplitterDistance = 437;
+            splitContainer1.SplitterWidth = 5;
+            splitContainer1.TabIndex = 8;
             // 
             // btnSave
             // 
-            this.btnSave.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.btnSave.Location = new System.Drawing.Point(407, 61);
-            this.btnSave.Name = "btnSave";
-            this.btnSave.Size = new System.Drawing.Size(95, 23);
-            this.btnSave.TabIndex = 9;
-            this.btnSave.Text = "Save (in place)";
-            this.btnSave.UseVisualStyleBackColor = true;
-            this.btnSave.Click += new System.EventHandler(this.btnSave_Click);
+            btnSave.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            btnSave.Location = new System.Drawing.Point(461, 70);
+            btnSave.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            btnSave.Name = "btnSave";
+            btnSave.Size = new System.Drawing.Size(111, 27);
+            btnSave.TabIndex = 9;
+            btnSave.Text = "Save (in place)";
+            btnSave.UseVisualStyleBackColor = true;
+            btnSave.Click += btnSave_Click;
             // 
             // ObjectsPanel
             // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
-            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.Controls.Add(this.btnSave);
-            this.Controls.Add(this.splitContainer1);
-            this.Controls.Add(this.btnReload);
-            this.Controls.Add(this.showScriptChanges);
-            this.Controls.Add(lblScript);
-            this.Controls.Add(lblModel);
-            this.Controls.Add(this.scriptFile);
-            this.Controls.Add(this.modelFile);
-            this.Name = "ObjectsPanel";
-            this.Size = new System.Drawing.Size(619, 256);
-            this.splitContainer1.Panel1.ResumeLayout(false);
-            this.splitContainer1.Panel2.ResumeLayout(false);
-            ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).EndInit();
-            this.splitContainer1.ResumeLayout(false);
-            this.ResumeLayout(false);
-            this.PerformLayout();
+            AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
+            AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            Controls.Add(btnSave);
+            Controls.Add(splitContainer1);
+            Controls.Add(btnReload);
+            Controls.Add(showScriptChanges);
+            Controls.Add(lblScript);
+            Controls.Add(lblModel);
+            Controls.Add(scriptFile);
+            Controls.Add(modelFile);
+            Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            Name = "ObjectsPanel";
+            Size = new System.Drawing.Size(708, 390);
+            splitContainer1.Panel1.ResumeLayout(false);
+            splitContainer1.Panel2.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)splitContainer1).EndInit();
+            splitContainer1.ResumeLayout(false);
+            ResumeLayout(false);
+            PerformLayout();
 
         }
 

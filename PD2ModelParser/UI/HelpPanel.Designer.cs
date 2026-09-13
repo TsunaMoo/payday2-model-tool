@@ -28,35 +28,35 @@
         /// </summary>
         private void InitializeComponent()
         {
-            creditLabel = new System.Windows.Forms.Label();
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(HelpPanel));
+            richTextBox = new System.Windows.Forms.RichTextBox();
             SuspendLayout();
             // 
-            // creditLabel
+            // richTextBox
             // 
-            creditLabel.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right;
-            creditLabel.AutoSize = true;
-            creditLabel.ForeColor = System.Drawing.SystemColors.ControlText;
-            creditLabel.Location = new System.Drawing.Point(386, 365);
-            creditLabel.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
-            creditLabel.Name = "creditLabel";
-            creditLabel.Size = new System.Drawing.Size(245, 15);
-            creditLabel.TabIndex = 7;
-            creditLabel.Text = "Credit to ZNixian, PoueT and I am not a spy...";
+            richTextBox.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+            richTextBox.BackColor = System.Drawing.SystemColors.ControlLight;
+            richTextBox.Location = new System.Drawing.Point(5, 5);
+            richTextBox.Margin = new System.Windows.Forms.Padding(5);
+            richTextBox.Name = "richTextBox";
+            richTextBox.ReadOnly = true;
+            richTextBox.Size = new System.Drawing.Size(698, 380);
+            richTextBox.TabIndex = 9;
+            richTextBox.Text = resources.GetString("richTextBox.Text");
             // 
             // HelpPanel
             // 
             AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            Controls.Add(creditLabel);
+            Controls.Add(richTextBox);
             ForeColor = System.Drawing.SystemColors.Control;
             Name = "HelpPanel";
-            Size = new System.Drawing.Size(645, 395);
+            Size = new System.Drawing.Size(708, 390);
             ResumeLayout(false);
-            PerformLayout();
         }
 
         #endregion
 
-        private System.Windows.Forms.Label creditLabel;
+        private System.Windows.Forms.RichTextBox richTextBox;
     }
 }

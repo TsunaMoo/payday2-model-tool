@@ -42,8 +42,6 @@ namespace PD2ModelParser.UI {
             animationFiles = new FileBrowserControl();
             objectFile = new FileBrowserControl();
             outputBox = new FileBrowserControl();
-            outputBox.SaveMode = true;
-            outputBox.Filter = "Diesel Model (*.model)|*.model";
             baseModelFileBrowser = new FileBrowserControl();
             importTransformsBox = new System.Windows.Forms.CheckBox();
             SuspendLayout();
@@ -128,11 +126,12 @@ namespace PD2ModelParser.UI {
             // 
             // convert
             // 
-            convert.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
-            convert.Location = new System.Drawing.Point(7, 345);
+            convert.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+            convert.AutoSize = true;
+            convert.Location = new System.Drawing.Point(4, 360);
             convert.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             convert.Name = "convert";
-            convert.Size = new System.Drawing.Size(705, 27);
+            convert.Size = new System.Drawing.Size(698, 27);
             convert.TabIndex = 9;
             convert.Text = "Convert";
             convert.UseVisualStyleBackColor = true;
@@ -157,7 +156,7 @@ namespace PD2ModelParser.UI {
             rootPoints.Location = new System.Drawing.Point(126, 246);
             rootPoints.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             rootPoints.Name = "rootPoints";
-            rootPoints.Size = new System.Drawing.Size(585, 23);
+            rootPoints.Size = new System.Drawing.Size(578, 23);
             rootPoints.TabIndex = 11;
             // 
             // labelRootPoint
@@ -191,7 +190,7 @@ namespace PD2ModelParser.UI {
             scriptFile.Margin = new System.Windows.Forms.Padding(5, 3, 5, 3);
             scriptFile.MinimumSize = new System.Drawing.Size(0, 27);
             scriptFile.Name = "scriptFile";
-            scriptFile.Size = new System.Drawing.Size(586, 27);
+            scriptFile.Size = new System.Drawing.Size(579, 27);
             scriptFile.TabIndex = 14;
             scriptFile.FileSelected += scriptFile_FileSelected;
             // 
@@ -203,7 +202,7 @@ namespace PD2ModelParser.UI {
             patternUVFile.Margin = new System.Windows.Forms.Padding(5, 3, 5, 3);
             patternUVFile.MinimumSize = new System.Drawing.Size(0, 27);
             patternUVFile.Name = "patternUVFile";
-            patternUVFile.Size = new System.Drawing.Size(586, 27);
+            patternUVFile.Size = new System.Drawing.Size(579, 27);
             patternUVFile.TabIndex = 6;
             // 
             // animationFiles
@@ -214,7 +213,7 @@ namespace PD2ModelParser.UI {
             animationFiles.Margin = new System.Windows.Forms.Padding(5, 3, 5, 3);
             animationFiles.MinimumSize = new System.Drawing.Size(0, 27);
             animationFiles.Name = "animationFiles";
-            animationFiles.Size = new System.Drawing.Size(586, 27);
+            animationFiles.Size = new System.Drawing.Size(579, 27);
             animationFiles.TabIndex = 10;
             // 
             // objectFile
@@ -225,7 +224,7 @@ namespace PD2ModelParser.UI {
             objectFile.Margin = new System.Windows.Forms.Padding(5, 3, 5, 3);
             objectFile.MinimumSize = new System.Drawing.Size(0, 27);
             objectFile.Name = "objectFile";
-            objectFile.Size = new System.Drawing.Size(586, 27);
+            objectFile.Size = new System.Drawing.Size(579, 27);
             objectFile.TabIndex = 5;
             // 
             // outputBox
@@ -236,7 +235,7 @@ namespace PD2ModelParser.UI {
             outputBox.Margin = new System.Windows.Forms.Padding(5, 3, 5, 3);
             outputBox.MinimumSize = new System.Drawing.Size(0, 27);
             outputBox.Name = "outputBox";
-            outputBox.Size = new System.Drawing.Size(586, 27);
+            outputBox.Size = new System.Drawing.Size(579, 27);
             outputBox.TabIndex = 4;
             // 
             // baseModelFileBrowser
@@ -247,7 +246,7 @@ namespace PD2ModelParser.UI {
             baseModelFileBrowser.Margin = new System.Windows.Forms.Padding(5, 3, 5, 3);
             baseModelFileBrowser.MinimumSize = new System.Drawing.Size(0, 27);
             baseModelFileBrowser.Name = "baseModelFileBrowser";
-            baseModelFileBrowser.Size = new System.Drawing.Size(586, 27);
+            baseModelFileBrowser.Size = new System.Drawing.Size(579, 27);
             baseModelFileBrowser.TabIndex = 0;
             baseModelFileBrowser.FileSelected += baseModelFileBrowser_FileSelected;
             // 
@@ -289,7 +288,7 @@ namespace PD2ModelParser.UI {
             Controls.Add(baseModelFileBrowser);
             Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             Name = "ImportPanel";
-            Size = new System.Drawing.Size(715, 375);
+            Size = new System.Drawing.Size(708, 390);
             Load += ImportPanel_Load;
             ResumeLayout(false);
             PerformLayout();
