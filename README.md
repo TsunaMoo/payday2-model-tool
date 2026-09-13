@@ -2,6 +2,7 @@
 
 This is a copy of IAmNotASpy and PoueT's model tool, with a bunch of new features:
 
+* You need .net 10 to run this
 * Greatly improved UI, with different functions cleanly separated
 * The ability to use an XML-based script to modify the object/bone structure of models, and create entirely
 new models without deriving them from an existing model, and set rootpoints for different objects
@@ -36,22 +37,16 @@ the downside that if you're importing into Blender bones and empties are drawn m
 
 # Feature Matrix
 
-| Format | Import | Export |
-|--------|--------|--------|
-| OBJ    | ✓      | ✓      |
-| DAE    |        | ✓      | 
-| GLTF   | ✓      | ✓      |
-
-| Data             | DAE | GLTF In | GLTF Out |
-|------------------|-----|---------|----------|
-| Triangles        | ✓   | ✓       | ✓        |
-| UV channels      | One | ✓       | ✓        |
-| Vertex colours   | ✗   | ✓       | ✓        |
-| Vertex weights   | ✗   | ✓       | ✓        |
-| Material slots   | ✗   | ✓       | ✓        |
-| Object hierarchy | ✓   | ✓       | ✓        |
-| Bones            | As objects | As objects | Partial |
-| Skinning         | ✗   | Ignored | Partial    |
+| Data             | GLTF In  | GLTF Out |
+|------------------|----------|----------|
+| Triangles        | ✓        | ✓        |
+| UV channels      | ✓        | ✓        |
+| Vertex colours   | ✓        | ✓        |
+| Vertex weights   | ✓        | ✓        |
+| Material slots   | ✓        | ✓        |
+| Object hierarchy | ✓        | ✓        | 
+| Bones            | Partial  | Partial   |
+| Skinning         | Ignored  | Partial   |
 
 Partial bone/skinning support refers to the result not being read sensibly in all implementations.
 
@@ -59,15 +54,7 @@ The GLTF importer completely ignores skinning data, so the results will be odd a
 
 # Hashlists
 Diesel very rarely stores actual names of things if it can store a hash of the name instead, so a list of
-names is needed in order to present something readable names instead of just large numbers. On export anything
-not in the list will be written as a number, while the GLTF importer will assume any name that's a valid
-`unsigned long` is the result of that process.
-
-A copy of [Luffyyy's version of the hashlist](https://github.com/Luffyyy/PAYDAY-2-Hashlist) is included; the
-tool looks for files whose names include, case insensitively, `hashlist` or `hashes`, in the current directory
-and next to the executable. Any it finds are interpreted as lists
-of unhashed names, one per line. If you change hashlists you will need to restart the tool in order to pick
-up the changes.
+names is needed. It can be downloaded in the hashlist tab.
 
 # Licence:
 
