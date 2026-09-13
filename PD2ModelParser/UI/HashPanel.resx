@@ -117,7 +117,10 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
-  <metadata name="folderBrowserDialog.TrayLocation" type="System.Drawing.Point, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
-    <value>17, 17</value>
-  </metadata>
+  <data name="textBox2.Text" xml:space="preserve">
+    <value>Diesel stores object names and filepaths as numerical values that need to be matched to the actual text string.
+To do that the hashlist is required to look up the matching text. 
+So before using processing any files using this tool the hashlist should be downloaded via the fetch button. 
+The button can also be used to update the hashlist when required.</value>
+  </data>
 </root>
