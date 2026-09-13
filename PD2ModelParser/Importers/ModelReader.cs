@@ -1,5 +1,4 @@
-﻿
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 
@@ -57,27 +56,52 @@ namespace PD2ModelParser
         /// <returns>The list of section headers</returns>
         public static List<SectionHeader> ReadHeaders(BinaryReader br)
         {
-            int random = br.ReadInt32();
-            int filesize = br.ReadInt32();
-            int sectionCount;
-            if (random == -1)
+            const uint Diesel3Magic = 0x42444F44; // "DODB"
+
+            uint magic = br.ReadUInt32();
+
+            uint version;
+            uint filesize;
+            uint sectionCount;
+            bool legacy = magic != Diesel3Magic;
+
+            if (magic == Diesel3Magic)
             {
-                sectionCount = br.ReadInt32();
+                version = br.ReadUInt32();
+                filesize = br.ReadUInt32();
+                sectionCount = br.ReadUInt32();
+
+                Log.Default.Debug(
+                    "Diesel 3 model - Version: {0}, Size: {1} bytes, Sections: {2}",
+                    version,
+                    filesize,
+                    sectionCount);
             }
             else
-                sectionCount = random;
+            {
+                filesize = br.ReadUInt32();
 
-            Log.Default.Debug("Size: {0} bytes, Sections: {1},{2}", filesize, sectionCount, br.BaseStream.Position);
+                if (magic == 0xFFFFFFFF)
+                    sectionCount = br.ReadUInt32();
+                else
+                    sectionCount = magic;
+
+                Log.Default.Debug(
+                    "Legacy model - Size: {0} bytes, Sections: {1}",
+                    filesize,
+                    sectionCount);
+            }
 
             List<SectionHeader> sections = new List<SectionHeader>();
 
             for (int x = 0; x < sectionCount; x++)
             {
-                SectionHeader sectionHead = new SectionHeader(br);
+                var sectionHead = new SectionHeader(br) { legacy = legacy };
                 sections.Add(sectionHead);
-                Log.Default.Debug("Section: {0}", sectionHead);
 
+                Log.Default.Debug("Section: {0}", sectionHead);
                 Log.Default.Debug("Next offset: {0}", sectionHead.End);
+
                 br.BaseStream.Position = sectionHead.End;
             }
 

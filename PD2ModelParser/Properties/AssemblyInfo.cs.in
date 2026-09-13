@@ -1,3 +1,7 @@
+// WARNING: This file is generated! Do not modify it, your
+// changes will be overwritten during the build process. Instead,
+// modify AssemblyInfo.cs.in, from which this file is generated.
+//
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -5,11 +9,11 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("RAID Model Tool")]
+[assembly: AssemblyTitle("PAYDAY 2 - 64 Bit Model Tool")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("RAID Model Tool")]
+[assembly: AssemblyProduct("PAYDAY 2 - 64 Bit Model Tool")]
 [assembly: AssemblyCopyright("Copyright © 2014-2018, GNU GPLv3")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
@@ -34,4 +38,4 @@ using System.Runtime.InteropServices;
 // [assembly: AssemblyVersion("1.0.*")]
 [assembly: AssemblyVersion("1.0.0.0")]
 [assembly: AssemblyFileVersion("1.0.0.0")]
-[assembly: AssemblyInformationalVersion("v2.22-RAID")]
+[assembly: AssemblyInformationalVersion("v2.23")]
