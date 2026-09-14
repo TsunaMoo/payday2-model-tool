@@ -130,6 +130,7 @@ namespace PD2ModelParser.UI
         {
             layout = new ImportPanelLayoutEngine(this);
             InitializeComponent();
+            outputBox.SaveMode = true;
         }
 
         private void ImportPanel_Load(object sender, EventArgs e)
