@@ -1,4 +1,4 @@
-# PAYDAY 2 Model Tool - Calcium Edition
+# Diesel Model Tool - Give Me More Diesel Editon
 
 This is a copy of IAmNotASpy and PoueT's model tool, with a bunch of new features:
 
