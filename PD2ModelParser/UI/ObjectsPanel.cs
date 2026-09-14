@@ -22,6 +22,8 @@ namespace PD2ModelParser.UI
 
             treeView.Nodes.Clear();
 
+            modelFile.Filter = "Diesel Model Files (*.model)|*.model";
+            scriptFile.Filter = "Model Script Files (*.mscript)|*.mscript";
             nodeRightclickMenu = new ContextMenuStrip();
 
             ToolStripButton properties = new ToolStripButton("Properties");

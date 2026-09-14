@@ -129,6 +129,10 @@ namespace PD2ModelParser.UI
         {
             layout = new ImportPanelLayoutEngine(this);
             InitializeComponent();
+            scriptFile.Filter = "Model Script Files (*.mscript)|*.mscript";
+            patternUVFile.Filter = "Model Files (*.obj;*.gltf;*.glb)|*.obj;*.gltf;*.glb|All Files (*.*)|*.*";
+            objectFile.Filter = "Model Files (*.obj;*.gltf;*.glb)|*.obj;*.gltf;*.glb|All Files (*.*)|*.*";
+            animationFiles.Filter = "Diesel Animation Files (*.animation)|*.animation";
             outputBox.SaveMode = true;
             outputBox.Filter = "Diesel Model Files (*.model)|*.model";
         }
