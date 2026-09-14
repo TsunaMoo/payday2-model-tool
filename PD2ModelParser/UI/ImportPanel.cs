@@ -1,10 +1,9 @@
+using PD2ModelParser.Sections;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Forms;
 using System.Windows.Forms.Layout;
-using PD2ModelParser.Sections;
-
 using Size = System.Drawing.Size;
 
 namespace PD2ModelParser.UI
@@ -131,6 +130,7 @@ namespace PD2ModelParser.UI
             layout = new ImportPanelLayoutEngine(this);
             InitializeComponent();
             outputBox.SaveMode = true;
+            outputBox.Filter = "Diesel Model Files (*.model)|*.model";
         }
 
         private void ImportPanel_Load(object sender, EventArgs e)
