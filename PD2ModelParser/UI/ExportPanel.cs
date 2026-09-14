@@ -18,6 +18,7 @@ namespace PD2ModelParser.UI
         public ExportPanel()
         {
             InitializeComponent();
+            inputFileBox.Filter = "Diesel Model Files (*.model)|*.model";
 
             formatBox.BeginUpdate();
 
