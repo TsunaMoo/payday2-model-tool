@@ -10,7 +10,7 @@ new models without deriving them from an existing model, and set rootpoints for 
 * glTF export support, with vertex colours, all eight UV channels, and material slots (multiUV).
   There's also preliminary support for exporting rigged models.
 * glTF import support, also with vertex colours, all eight UV channels, and material slots.
-* And a bunch of miscellaneous features and bugfixes
+* Supports Export for Payday the Heist, Payday 2 Legacy, Payday 2, Raid WW II Legacy, Raid WW II U20
 
 # glTF export/import
 
