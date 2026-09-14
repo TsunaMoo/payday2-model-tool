@@ -627,7 +627,7 @@ namespace PD2ModelParser.Importers
                     }
                 }
 
-                AddToGeom(ref geom.verts, 3, DM.GeometryChannelTypes.POSITION, md.verts);
+                AddToGeom(ref geom.verts, 3, DM.GeometryChannelTypes.POSITION0, md.verts);
 
                 AddToGeom(ref geom.normals, 8, DM.GeometryChannelTypes.NORMAL0, md.normals);
                 AddToGeom(ref geom.binormals, 8, DM.GeometryChannelTypes.BINORMAL0, md.binormals);
