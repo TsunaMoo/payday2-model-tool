@@ -32,12 +32,8 @@ namespace PD2ModelParser.UI
                 }
             }
 
-            Label[] labels;
-            Control[] fields;
             TableRow[] rows;
-
             int maxLabelWidth;
-            int minFieldWidth;
 
             public ImportPanelLayoutEngine(ImportPanel panel)
             {
