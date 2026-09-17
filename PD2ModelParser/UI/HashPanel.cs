@@ -62,6 +62,7 @@ namespace PD2ModelParser.UI
                 var dir = Path.GetDirectoryName(localHashlistPath);
 
                 await File.WriteAllTextAsync(localHashlistPath, content);
+                StaticStorage.hashindex.RequestReload();
 
                 MessageBox.Show(this, "Hashlist downloaded and saved.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
