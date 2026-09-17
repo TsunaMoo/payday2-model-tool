@@ -49,31 +49,25 @@ namespace PD2ModelParser.Exporters
         {
             var bones = new List<Object3D>();
 
-            foreach (var bone in skinBones.Objects)
+            var rootBone = skinBones.ProbablyRootBone;
+
+            if (rootBone == null)
+                return bones;
+
+            void AddChildren(Object3D bone)
             {
-                if (bone != null && !bones.Contains(bone))
-                    bones.Add(bone);
+                if (bone == null || bones.Contains(bone))
+                    return;
+
+                bones.Add(bone);
+
+                foreach (var child in bone.children)
+                {
+                    AddChildren(child);
+                }
             }
 
-            bool added;
-
-            do
-            {
-                added = false;
-
-                foreach (var bone in bones.ToList())
-                {
-                    foreach (var child in bone.children)
-                    {
-                        if (!bones.Contains(child))
-                        {
-                            bones.Add(child);
-                            added = true;
-                        }
-                    }
-                }
-
-            } while (added);
+            AddChildren(rootBone);
 
             return bones;
         }
@@ -88,25 +82,23 @@ namespace PD2ModelParser.Exporters
             root = GLTF.ModelRoot.CreateModel();
             scene = root.UseScene(0);
 
-            // Blender's GLTF importer cares about some extras.
-            /*var extras = scene.TryUseExtrasAsDictionary(true);
-            extras.Add("glTF2ExportSettings", new SharpGLTF.IO.JsonDictionary
-            {
-                { "export_extras", 1 },
-                { "export_lights", 1 }
-            });*/
-
-            foreach (var ms in data.parsed_sections.Where(i => i.Value is Material).Select(i => i.Value as Material))
+            foreach (var ms in data.parsed_sections
+                .Where(i => i.Value is Material)
+                .Select(i => i.Value as Material))
             {
                 materialsBySection[ms] = root.CreateMaterial(ms.HashName.String);
             }
 
-            var axisCorrection = scene.CreateNode("PD2_AxisCorrection");
-            axisCorrection.LocalMatrix = Matrix4x4.CreateRotationX(-MathF.PI / 2);
-
             foreach (var i in data.SectionsOfType<Object3D>().Where(i => i.Parent == null))
             {
-                CreateNodeFromObject3D(i, axisCorrection);
+                CreateNodeFromObject3D(i, scene);
+            }
+
+            var axisCorrection = Matrix4x4.CreateRotationX(-MathF.PI / 2);
+
+            foreach (var node in scene.VisualChildren.ToList())
+            {
+                node.LocalMatrix = axisCorrection * node.LocalMatrix;
             }
 
             foreach (var (thing, node) in toSkin)
@@ -122,10 +114,6 @@ namespace PD2ModelParser.Exporters
         void CreateNodeFromObject3D(Object3D thing, GLTF.IVisualNodeContainer parent)
         {
             var isSkinned = thing is Model m && m.SkinBones != null;
-            if (isSkinned)
-            {
-                parent = scene;
-            }
 
             var node = parent.CreateNode(thing.Name);
 
@@ -213,11 +201,10 @@ namespace PD2ModelParser.Exporters
             if (skeletonObjects.Count == 0)
                 return;
 
-            var skin = root.CreateSkin(model.Name + "_Skin");
+            var skin = root.CreateSkin(model.Name);
 
             var skeletonRootNode = nodesBySection[skinbones.ProbablyRootBone];
             skin.Skeleton = skeletonRootNode;
-
             node.LocalTransform = Matrix4x4.Identity;
 
             var joints = new List<(GLTF.Node, Matrix4x4)>();
@@ -254,16 +241,6 @@ namespace PD2ModelParser.Exporters
                 joints.Add((jointNode, ibm));
             }
 
-            Log.Default.Info(
-            $"Binding {joints.Count} joints for {model.Name}, " +
-            $"skeleton root = {skeletonRootNode.Name}");
-
-            foreach (var (joint, _) in joints)
-            {
-                Log.Default.Info(
-                    $"  Joint: {joint.Name}, parent = " +
-                    $"{joint.VisualParent?.Name ?? "NULL"}");
-            }
             skin.BindJoints(joints);
 
             node.Skin = skin;
@@ -325,7 +302,18 @@ namespace PD2ModelParser.Exporters
                 var atom_ma = new MemoryAccessor(buf, atom_mai);
                 var accessor = root.CreateAccessor();
                 accessor.SetIndexData(atom_ma);
-                var material = materialsBySection[materialGroup.Items[(int)ra.MaterialId]];
+                var materialSection = materialGroup.Items[(int)ra.MaterialId];
+
+                if (!materialsBySection.TryGetValue(materialSection, out var material))
+                {
+                    Log.Default.Warn(
+                        $"Missing material section: " +
+                        $"ID {materialSection.SectionId}, " +
+                        $"HashName {materialSection.HashName}");
+
+                    continue;
+                }
+
                 yield return (accessor, material);
             }
         }

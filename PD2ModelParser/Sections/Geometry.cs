@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
-using System.Security.RightsManagement;
 using static PD2ModelParser.Sections.Geometry;
 
 namespace PD2ModelParser.Sections
@@ -278,6 +277,7 @@ namespace PD2ModelParser.Sections
             var src = this;
             var dst = new Geometry();
 
+            dst.Format = src.Format;
             dst.vert_count = vert_count;
             dst.Headers.AddRange(src.Headers.Select(i => new GeometryHeader(i.ItemSize, i.ItemType)));
             dst.verts.AddRange(src.verts);
@@ -325,7 +325,6 @@ namespace PD2ModelParser.Sections
             SectionId = section.id;
             vert_count = instream.ReadUInt32();
             uint header_count = instream.ReadUInt32();
-            uint calc_size = 0;
 
             for (int x = 0; x < header_count; x++)
             {
@@ -341,16 +340,37 @@ namespace PD2ModelParser.Sections
                 Headers.Add(header);
             }
 
-            Format = section.legacy
-                ? Headers.Any(h => h.ItemSize == 9)
+            if (section.legacy)
+            {
+                Format = Headers.Any(h => h.ItemSize == 9)
                     ? GeometryFormat.RaidLegacy
-                    : GeometryFormat.Payday
-                : Headers.Any(h => h.ItemSize == 9)
+                    : GeometryFormat.Payday;
+            }
+            else if (Headers.Any(h => h.ItemSize == 9))
+            {
+                uint paydayBytesPerVertex = 0;
+                uint raidBytesPerVertex = 0;
+
+                foreach (GeometryHeader head in Headers)
+                {
+                    paydayBytesPerVertex += PaydayItemSizes[(int)head.ItemSize];
+                    raidBytesPerVertex += RaidItemSizes[(int)head.ItemSize];
+                }
+
+                long sectionEnd = section.offset + 12 + section.size;
+                long availableBytes = sectionEnd - instream.BaseStream.Position;
+
+                long paydayExpected = (long)paydayBytesPerVertex * vert_count + 8;
+                long raidExpected = (long)raidBytesPerVertex * vert_count + 8;
+
+                Format = availableBytes == raidExpected
                     ? GeometryFormat.Raid
                     : GeometryFormat.Payday;
-
-            foreach (GeometryHeader head in Headers)
-                calc_size += GetItemSizeBytes(head);
+            }
+            else
+            {
+                Format = GeometryFormat.Payday;
+            }
 
             foreach (GeometryHeader head in Headers)
             {
@@ -415,8 +435,6 @@ namespace PD2ModelParser.Sections
                     }
                     else
                     {
-                        if (head.ItemSize == 4)
-                            Log.Default.Warn("Section {0} has four weights", SectionId);
 
                         if (head.ItemSize != 2 &&
                             head.ItemSize != 3 &&
@@ -444,16 +462,6 @@ namespace PD2ModelParser.Sections
                             {
                                 weights_entry.Z = instream.ReadSingle();
 
-                                float tmp = instream.ReadSingle();
-
-                                if (tmp != 0)
-                                {
-                                    Log.Default.Warn(
-                                        "Nonzero fourth weight in {0} vtx {1} (is {2})",
-                                        SectionId,
-                                        x,
-                                        tmp);
-                                }
                             }
 
                             weights.Add(weights_entry);
@@ -506,13 +514,11 @@ namespace PD2ModelParser.Sections
                         weights.Capacity = (int)vert_count + 1;
 
                         for (int x = 0; x < vert_count; x++)
-                        {
                             weights.Add(
                                 new Vector3(
                                     instream.ReadSingle(),
                                     instream.ReadSingle(),
                                     instream.ReadSingle()));
-                        }
                     }
                     else
                     {
@@ -548,6 +554,56 @@ namespace PD2ModelParser.Sections
 
         public override void StreamWriteData(BinaryWriter outstream)
         {
+            List<Vector3> verts = this.verts;
+            List<Vector3> normals = this.normals.ToList();
+            List<GeometryWeightGroups> weight_groups = this.weight_groups;
+            List<Vector3> binormals = this.binormals;
+            List<Vector3> tangents = this.tangents;
+
+            if (vert_count != verts.Count)
+            {
+                throw new InvalidDataException(
+                    $"Geometry {HashName}: vert_count={vert_count}, verts={verts.Count}.");
+            }
+
+            foreach (var head in Headers)
+            {
+                if (head.ItemType == GeometryChannelTypes.BLENDWEIGHT0)
+                {
+                    if (Format == GeometryFormat.RaidLegacy && head.ItemSize == 7)
+                    {
+                        if (weight_groups.Count != vert_count)
+                        {
+                            throw new InvalidDataException(
+                                $"Geometry {HashName}: RaidLegacy BLENDWEIGHT0 expects {vert_count} weight groups, got {weight_groups.Count}.");
+                        }
+                    }
+                    else
+                    {
+                        if (head.ItemSize != 2 &&
+                            head.ItemSize != 3 &&
+                            head.ItemSize != 4)
+                        {
+                            throw new InvalidDataException(
+                                $"Geometry {HashName}: invalid BLENDWEIGHT0 item size {head.ItemSize}.");
+                        }
+
+                        if (weights.Count != vert_count)
+                        {
+                            throw new InvalidDataException(
+                                $"Geometry {HashName}: BLENDWEIGHT0 expects {vert_count} weights, got {weights.Count}.");
+                        }
+                    }
+                }
+
+                if (head.ItemType == GeometryChannelTypes.BLENDINDICES0 &&
+                    weight_groups.Count != vert_count)
+                {
+                    throw new InvalidDataException(
+                        $"Geometry {HashName}: BLENDINDICES0 expects {vert_count} weight groups, got {weight_groups.Count}.");
+                }
+            }
+
             outstream.Write(vert_count);
             outstream.Write(Headers.Count);
 
@@ -557,13 +613,8 @@ namespace PD2ModelParser.Sections
                 outstream.Write((uint)head.ItemType);
             }
 
-            List<Vector3> verts = this.verts;
             int vert_pos = 0;
-            List<Vector3> normals = this.normals.ToList();
             int norm_pos = 0;
-            List<GeometryWeightGroups> weight_groups = this.weight_groups;
-            List<Vector3> binormals = this.binormals;
-            List<Vector3> tangents = this.tangents;
 
             foreach (GeometryHeader head in Headers)
             {
@@ -626,57 +677,20 @@ namespace PD2ModelParser.Sections
                 else if (head.ItemType == GeometryChannelTypes.BLENDINDICES0)
                 {
                     for (int x = 0; x < vert_count; x++)
-                    {
-                        if (weight_groups.Count != vert_count)
-                        {
-                            outstream.Write((ushort)0);
-                            outstream.Write((ushort)0);
-                            outstream.Write((ushort)0);
-                            outstream.Write((ushort)0);
-                        }
-                        else
-                        {
-                            weight_groups[x].StreamWrite(outstream);
-                        }
-                    }
+                        weight_groups[x].StreamWrite(outstream);
                 }
                 else if (head.ItemType == GeometryChannelTypes.BLENDWEIGHT0)
                 {
                     if (Format == GeometryFormat.RaidLegacy && head.ItemSize == 7)
                     {
-                        if (weight_groups.Count != vert_count)
-                        {
-                            throw new InvalidDataException(
-                                "RaidLegacy BLENDWEIGHT0 -> BLENDINDICES0 data is missing.");
-                        }
-
                         for (int x = 0; x < vert_count; x++)
                             weight_groups[x].StreamWrite(outstream);
                     }
                     else
                     {
-                        if (head.ItemSize == 4)
-                        {
-                            Log.Default.Warn(
-                                "Section {0} has four weights",
-                                HashName);
-                        }
-
-                        if (head.ItemSize != 2 &&
-                            head.ItemSize != 3 &&
-                            head.ItemSize != 4)
-                        {
-                            throw new Exception(
-                                "Cannot write bad header BLENDWEIGHT s=" +
-                                head.ItemSize);
-                        }
-
                         for (int x = 0; x < vert_count; x++)
                         {
-                            Vector3 weight =
-                                weights.Count == vert_count
-                                    ? weights[x]
-                                    : Vector3.UnitX;
+                            Vector3 weight = weights[x];
 
                             outstream.Write(weight.X);
                             outstream.Write(weight.Y);
@@ -774,98 +788,6 @@ namespace PD2ModelParser.Sections
                 outstream.Write(remaining_data);
         }
 
-        public void PrintDetailedOutput(StreamWriter outstream)
-        {
-            if (weight_groups.Count > 0 &&
-                weights.Count > 0)
-            {
-                outstream.WriteLine(
-                    "Printing weights table for " + HashName);
-                outstream.WriteLine(
-                    "====================================================");
-                outstream.WriteLine(
-                    "Bones1\tBones2\tBones3\tBones4\t" +
-                    "WeightX\tWeightY\tWeightZ\ttotalsum\t" +
-                    "BinormalX\tBinormalY\tBinormalZ\t" +
-                    "TangentX\tTangentY\tTangentZ");
-
-                int count = Math.Min(
-                    weight_groups.Count,
-                    weights.Count);
-
-                for (int x = 0; x < count; x++)
-                {
-                    string binormalX = "";
-                    string binormalY = "";
-                    string binormalZ = "";
-                    string tangentX = "";
-                    string tangentY = "";
-                    string tangentZ = "";
-
-                    if (binormals.Count == vert_count &&
-                        x < binormals.Count)
-                    {
-                        binormalX = binormals[x].X.ToString(
-                            "0.000000",
-                            System.Globalization.CultureInfo.InvariantCulture);
-
-                        binormalY = binormals[x].Y.ToString(
-                            "0.000000",
-                            System.Globalization.CultureInfo.InvariantCulture);
-
-                        binormalZ = binormals[x].Z.ToString(
-                            "0.000000",
-                            System.Globalization.CultureInfo.InvariantCulture);
-                    }
-
-                    if (tangents.Count == vert_count &&
-                        x < tangents.Count)
-                    {
-                        tangentX = tangents[x].X.ToString(
-                            "0.000000",
-                            System.Globalization.CultureInfo.InvariantCulture);
-
-                        tangentY = tangents[x].Y.ToString(
-                            "0.000000",
-                            System.Globalization.CultureInfo.InvariantCulture);
-
-                        tangentZ = tangents[x].Z.ToString(
-                            "0.000000",
-                            System.Globalization.CultureInfo.InvariantCulture);
-                    }
-
-                    outstream.WriteLine(
-                        weight_groups[x].Bones1 + "\t" +
-                        weight_groups[x].Bones2 + "\t" +
-                        weight_groups[x].Bones3 + "\t" +
-                        weight_groups[x].Bones4 + "\t" +
-                        weights[x].X.ToString(
-                            "0.000000",
-                            System.Globalization.CultureInfo.InvariantCulture) + "\t" +
-                        weights[x].Y.ToString(
-                            "0.000000",
-                            System.Globalization.CultureInfo.InvariantCulture) + "\t" +
-                        weights[x].Z.ToString(
-                            "0.000000",
-                            System.Globalization.CultureInfo.InvariantCulture) + "\t" +
-                        (weights[x].X +
-                         weights[x].Y +
-                         weights[x].Z).ToString(
-                            "0.000000",
-                            System.Globalization.CultureInfo.InvariantCulture) + "\t" +
-                        binormalX + "\t" +
-                        binormalY + "\t" +
-                        binormalZ + "\t" +
-                        tangentX + "\t" +
-                        tangentY + "\t" +
-                        tangentZ);
-                }
-
-                outstream.WriteLine(
-                    "====================================================");
-            }
-        }
-
         public override string ToString()
         {
             return base.ToString() +
@@ -878,11 +800,7 @@ namespace PD2ModelParser.Sections
                    " Weight Groups: " + weight_groups.Count +
                    " Weights: " + weights.Count +
                    " Binormals: " + binormals.Count +
-                   " Tangents: " + tangents.Count +
-                   " unknown_hash: " + HashName +
-                   (remaining_data != null
-                       ? " REMAINING DATA! " + remaining_data.Length + " bytes"
-                       : "");
+                   " Tangents: " + tangents.Count;
         }
     }
 }
