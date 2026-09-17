@@ -5,23 +5,14 @@ using System.Numerics;
 using GLTF = SharpGLTF.Schema2;
 using DM = PD2ModelParser.Sections;
 using System.Reflection;
-//using PD2ModelParser.Sections;
 
 namespace PD2ModelParser.Importers
 {
-
     class GltfImporter
     {
-        /// <summary>
-        /// Import all of the default scene of a GLTF file, parenting it as specified.
-        /// </summary>
-        /// <param name="fmd">Diesel model to add the contents to.</param>
-        /// <param name="path">Path of the GLTF file to import</param>
-        /// <param name="getParentByName">Callback to find the parent of a particular model.</param>
         public static void Import(FullModelData fmd, string path, bool createModels, Func<string, DM.Object3D> parentFinder, IOptionReceiver opts)
         {
             GLTF.ModelRoot gltf = null;
-            // Try to load normally. If load throws due to invalid tangents we gotta fix remove, reload then fix tangents.
             try
             {
                 gltf = GLTF.ModelRoot.Load(path);
@@ -31,94 +22,87 @@ namespace PD2ModelParser.Importers
                 if (!TryLoadWithoutTangents(path, out gltf)) throw;
             }
             var importer = new GltfImporter(fmd);
-
-            // While it's inadvisable to do so, let the user keep the old rigging
             string preserveSkinsOpt = opts.GetOption("overwrite-rigging");
             if (preserveSkinsOpt != null)
             {
                 importer.overwriteRigging = bool.Parse(preserveSkinsOpt);
             }
 
-        // Remove tangents if we end up with corrupted tangents.
-        bool TryLoadWithoutTangents(string path, out GLTF.ModelRoot root)
-        {
-            root = null;
-            try
+            bool TryLoadWithoutTangents(string path, out GLTF.ModelRoot root)
             {
-                var data = System.IO.File.ReadAllBytes(path);
-                if (data.Length < 20) return false;
-                // GLB header
-                uint magic = BitConverter.ToUInt32(data, 0);
-                if (magic != 0x46546C67) return false; // 'glTF'
-                int offset = 12;
-                uint chunkLen = BitConverter.ToUInt32(data, offset);
-                uint chunkType = BitConverter.ToUInt32(data, offset + 4);
-                offset += 8;
-                if (chunkType != 0x4E4F534A) return false; // JSON
-                var json = System.Text.Encoding.UTF8.GetString(data, offset, (int)chunkLen);
-                var j = Newtonsoft.Json.Linq.JObject.Parse(json);
-                bool modified = false;
-                var meshes = j["meshes"] as Newtonsoft.Json.Linq.JArray;
-                if (meshes != null)
+                root = null;
+                try
                 {
-                    foreach (var mesh in meshes)
+                    var data = System.IO.File.ReadAllBytes(path);
+                    if (data.Length < 20) return false;
+                    // GLB header
+                    uint magic = BitConverter.ToUInt32(data, 0);
+                    if (magic != 0x46546C67) return false; // 'glTF'
+                    int offset = 12;
+                    uint chunkLen = BitConverter.ToUInt32(data, offset);
+                    uint chunkType = BitConverter.ToUInt32(data, offset + 4);
+                    offset += 8;
+                    if (chunkType != 0x4E4F534A) return false; // JSON
+                    var json = System.Text.Encoding.UTF8.GetString(data, offset, (int)chunkLen);
+                    var j = Newtonsoft.Json.Linq.JObject.Parse(json);
+                    bool modified = false;
+                    var meshes = j["meshes"] as Newtonsoft.Json.Linq.JArray;
+                    if (meshes != null)
                     {
-                        var prims = mesh["primitives"] as Newtonsoft.Json.Linq.JArray;
-                        if (prims == null) continue;
-                        foreach (var prim in prims)
+                        foreach (var mesh in meshes)
                         {
-                            var attrs = prim["attributes"] as Newtonsoft.Json.Linq.JObject;
-                            if (attrs != null && attrs.Property("TANGENT") != null)
+                            var prims = mesh["primitives"] as Newtonsoft.Json.Linq.JArray;
+                            if (prims == null) continue;
+                            foreach (var prim in prims)
                             {
-                                attrs.Property("TANGENT").Remove();
-                                modified = true;
+                                var attrs = prim["attributes"] as Newtonsoft.Json.Linq.JObject;
+                                if (attrs != null && attrs.Property("TANGENT") != null)
+                                {
+                                    attrs.Property("TANGENT").Remove();
+                                    modified = true;
+                                }
                             }
                         }
                     }
-                }
 
-                if (!modified) return false;
+                    if (!modified) return false;
 
-                var newJson = j.ToString(Newtonsoft.Json.Formatting.None);
-                var newJsonBytes = System.Text.Encoding.UTF8.GetBytes(newJson);
-                int pad = (4 - (newJsonBytes.Length % 4)) % 4;
-                var padded = new byte[newJsonBytes.Length + pad];
-                Array.Copy(newJsonBytes, padded, newJsonBytes.Length);
+                    var newJson = j.ToString(Newtonsoft.Json.Formatting.None);
+                    var newJsonBytes = System.Text.Encoding.UTF8.GetBytes(newJson);
+                    int pad = (4 - (newJsonBytes.Length % 4)) % 4;
+                    var padded = new byte[newJsonBytes.Length + pad];
+                    Array.Copy(newJsonBytes, padded, newJsonBytes.Length);
 
-                using (var ms = new System.IO.MemoryStream())
-                {
-                    ms.Write(BitConverter.GetBytes(0x46546C67), 0, 4);
-                    ms.Write(BitConverter.GetBytes(2u), 0, 4);
-                    ms.Write(BitConverter.GetBytes(0u), 0, 4); // total len placeholder
-                    ms.Write(BitConverter.GetBytes((uint)padded.Length), 0, 4);
-                    ms.Write(BitConverter.GetBytes(0x4E4F534A), 0, 4);
-                    ms.Write(padded, 0, padded.Length);
-                    int jsonEnd = offset + (int)chunkLen;
-                    if (jsonEnd < data.Length)
+                    using (var ms = new System.IO.MemoryStream())
                     {
-                        ms.Write(data, jsonEnd, data.Length - jsonEnd);
+                        ms.Write(BitConverter.GetBytes(0x46546C67), 0, 4);
+                        ms.Write(BitConverter.GetBytes(2u), 0, 4);
+                        ms.Write(BitConverter.GetBytes(0u), 0, 4);
+                        ms.Write(BitConverter.GetBytes((uint)padded.Length), 0, 4);
+                        ms.Write(BitConverter.GetBytes(0x4E4F534A), 0, 4);
+                        ms.Write(padded, 0, padded.Length);
+                        int jsonEnd = offset + (int)chunkLen;
+                        if (jsonEnd < data.Length)
+                        {
+                            ms.Write(data, jsonEnd, data.Length - jsonEnd);
+                        }
+                        ms.Seek(8, System.IO.SeekOrigin.Begin);
+                        ms.Write(BitConverter.GetBytes((uint)ms.Length), 0, 4);
+                        var tmp = System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.IO.Path.GetFileNameWithoutExtension(path) + "_notangent.glb");
+                        System.IO.File.WriteAllBytes(tmp, ms.ToArray());
+                        root = GLTF.ModelRoot.Load(tmp);
+                        return true;
                     }
-                    ms.Seek(8, System.IO.SeekOrigin.Begin);
-                    ms.Write(BitConverter.GetBytes((uint)ms.Length), 0, 4);
-                    var tmp = System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.IO.Path.GetFileNameWithoutExtension(path) + "_notangent.glb");
-                    System.IO.File.WriteAllBytes(tmp, ms.ToArray());
-                    root = GLTF.ModelRoot.Load(tmp);
-                    return true;
                 }
+                catch { return false; }
             }
-            catch { return false; }
-        }
 
-            // Let the user not import bone poses for compatibility with existing animations.
             string importTransforms = opts.GetOption("import-transforms");
             if (importTransforms != null)
             {
-                // Previous default behavior was disabling importTransforms regardless of what value was provided
-                // Since people mostly used to set it to "false" via model script, make the default on parse fail "false"
                 bool.TryParse(importTransforms, out importer.importTransforms);
             }
 
-            // Kinda trying to get new tangents or if things are busted, I hope that works.
             foreach (var mesh in gltf.LogicalMeshes)
                 foreach (var prim in mesh.Primitives)
                     TryGenerateTangentsUsingToolkit(prim);
@@ -126,6 +110,7 @@ namespace PD2ModelParser.Importers
             importer.ImportTree(gltf, createModels, parentFinder);
         }
 
+        public static bool ReuseExistingObjects = false;
         FullModelData data;
         Dictionary<GLTF.Node, DM.Object3D> objectsByNode = new Dictionary<GLTF.Node, DM.Object3D>();
         bool createModels;
@@ -149,6 +134,7 @@ namespace PD2ModelParser.Importers
         /// component of every node on import.
         /// </remarks>
         float scaleFactor = 100;
+        Matrix4x4 axisCorrection = Matrix4x4.CreateRotationX(MathF.PI / 2);
 
         public GltfImporter(FullModelData data)
         {
@@ -197,15 +183,16 @@ namespace PD2ModelParser.Importers
         {
             this.createModels = createModels;
 
-            foreach(var node in root.DefaultScene.VisualChildren)
+            foreach (var node in root.DefaultScene.VisualChildren)
             {
                 DM.Object3D parent = null;
                 try
                 {
                     parent = parentFinder(node.Name);
                 }
-                catch { } // TODO: Call with a better parentFinder that doesn't need this.
-                ImportNode(node, parent);
+                catch { }
+
+                ImportNode(node, parent, axisCorrection);
             }
 
             foreach (var i in toSkin)
@@ -221,25 +208,25 @@ namespace PD2ModelParser.Importers
             ImportAnimations(root);
         }
 
-        void ImportNode(GLTF.Node node, DM.Object3D parent)
+        void ImportNode(GLTF.Node node, DM.Object3D parent, Matrix4x4 parentCorrection)
         {
             var hashname = HashName.FromNumberOrString(node.Name);
 
-            var obj = data.parsed_sections
-                .Select(i => i.Value as DM.Object3D)
-                .Where(i => i != null)
-                .FirstOrDefault(i => i.HashName.Hash == hashname.Hash);
+            DM.Object3D obj = null;
+
+            if (ReuseExistingObjects)
+            {
+                obj = data.parsed_sections
+                    .Select(i => i.Value as DM.Object3D)
+                    .Where(i => i != null)
+                    .FirstOrDefault(i => i.HashName.Hash == hashname.Hash);
+            }
 
             bool shouldSetParent = true;
 
             if (obj == null)
             {
-                /*var extras = node.TryUseExtrasAsDictionary(false);
-                if(createModels && extras != null && extras.ContainsKey("diesel.modelv6.unk7"))
-                {
-                    obj = CreateNewModelv6(node, parent);
-                }
-                else*/ if (createModels && node.Mesh == null)
+                if (createModels && node.Mesh == null)
                 {
                     obj = new DM.Object3D(hashname.String, parent);
                 }
@@ -261,20 +248,32 @@ namespace PD2ModelParser.Importers
                 {
                     throw new Exception($"Object {node.Name} does not already exist and object creation is disabled.");
                 }
+
                 data.AddSection(obj);
             }
             else
             {
-                if(node.Mesh != null && !(obj is DM.Model))
+                if (node.Mesh != null && !(obj is DM.Model))
                 {
-                    if(!createModels)
+                    if (!createModels)
                     {
                         throw new Exception($"Object {node.Name} already exists, isn't a model, and object creation is disabled.");
                     }
-                    var newObj = CreateNewModel(node.Mesh, node.Name);
-                    foreach(var i in obj.children)
+
+                    var oldObj = obj;
+                    obj = CreateNewModel(node.Mesh, node.Name);
+
+                    foreach (var i in oldObj.children.ToList())
                     {
-                        i.SetParent(newObj);
+                        i.SetParent(obj);
+                    }
+
+                    data.AddSection(obj);
+
+                    if (node.Skin != null)
+                    {
+                        toSkin.Add((node, obj as DM.Model));
+                        toRemap.Add((node.Skin, obj as DM.Model));
                     }
                 }
                 else if (node.Mesh != null && obj is DM.Model mod)
@@ -285,7 +284,8 @@ namespace PD2ModelParser.Importers
                     {
                         if (overwriteRigging)
                             toSkin.Add((node, mod));
-                        toRemap.Add((node.Skin, obj as DM.Model));
+
+                        toRemap.Add((node.Skin, mod));
                     }
                 }
                 else if (node.PunctualLight != null)
@@ -293,13 +293,12 @@ namespace PD2ModelParser.Importers
                     throw new Exception("Can't overwrite lights yet.");
                 }
 
-                // Don't re-parent nodes that already exist in the tree
                 shouldSetParent = false;
             }
 
             objectsByNode.Add(node, obj);
 
-            if(parent != null && shouldSetParent)
+            if (parent != null && shouldSetParent)
             {
                 obj.SetParent(parent);
             }
@@ -308,17 +307,22 @@ namespace PD2ModelParser.Importers
             {
                 var lt = node.LocalTransform;
                 var m = lt.Matrix;
+
                 m.M41 *= scaleFactor;
                 m.M42 *= scaleFactor;
                 m.M43 *= scaleFactor;
+
+                if (parentCorrection != Matrix4x4.Identity)
+                    m = parentCorrection * m;
+
                 obj.Transform = m;
             }
 
             (obj as DM.Model)?.UpdateBounds();
 
-            foreach(var child in node.VisualChildren)
+            foreach (var child in node.VisualChildren)
             {
-                ImportNode(child, obj);
+                ImportNode(child, obj, Matrix4x4.Identity);
             }
         }
 
@@ -358,40 +362,6 @@ namespace PD2ModelParser.Importers
         DM.Light CreateNewLamp(GLTF.PunctualLight gl, string name)
         {
             throw new NotImplementedException("Lights are currently not implemented");
-            /*var extras = gl.Extras;
-            // how do you even do this without it throwing
-            float? maybeNearRange = extras.GetValue<float?>("diesel.nearRange");
-            float nearRange = maybeNearRange ?? 0.0f;
-            if(!maybeNearRange.HasValue)
-            {
-                Log.Default.Warn($"Light {name} has no diesel.nearRange specified. Defaulting to 0");
-            }
-
-            var dl = new DM.Light(name, null)
-            {
-                unknown_1 = 1,
-                Colour = new DM.LightColour() { A = 1.0f, R = gl.Color.X, G = gl.Color.Y, B = gl.Color.Z },
-                FarRange = gl.Range * scaleFactor,
-                unknown_8 = BitConverter.ToSingle(new byte[4] { 4, 0, 0, 0 }, 0),
-                NearRange = nearRange * scaleFactor
-            };
-
-            dl.LightType = gl.LightType switch
-            {
-                GLTF.PunctualLightType.Point => 1,
-                GLTF.PunctualLightType.Spot => 2,
-                _ => throw new Exception($"Light {name} is neither point nor spot."),
-            };
-
-            if (extras.TryGetValue("diesel.unknown_6", out object ov))
-            {
-                if(ov is float ovf) { dl.unknown_6 = ovf; }
-            }
-            if (extras.TryGetValue("diesel.unknown_7", out object ou7))
-            {
-                if (ou7 is float ou7f) { dl.unknown_6 = ou7f; }
-            }
-            return dl;*/
         }
 
         DM.Model CreateNewModel(GLTF.Mesh gmesh, string name)
@@ -442,40 +412,6 @@ namespace PD2ModelParser.Importers
         DM.Model CreateNewModelv6(GLTF.Node node, DM.Object3D parent)
         {
             throw new NotImplementedException("Creating v6 models is not currently supported");
-            var extras = node.Extras;
-            object o_unk7, o_bmin, o_bmax;
-            Vector3 v_bmin, v_bmax;
-
-            /*if(!extras.TryGetValue("diesel.modelv6.unk7", out o_unk7) || !(o_unk7 is float || o_unk7 is double))
-            {
-                throw new Exception($"Node {node.Name} doesn't contain extra \"diesel.modelv6.unk7\" or it's not a float");
-            }
-            if(!extras.TryGetValue("diesel.modelv6.bound_min", out o_bmin))
-            {
-                throw new Exception($"Node {node.Name} is a v6 model and doesn't contain \"diesel.modelv6.bound_min\"");
-            }
-            if (!extras.TryGetValue("diesel.modelv6.bound_max", out o_bmax))
-            {
-                throw new Exception($"Node {node.Name} is a v6 model and doesn't contain \"diesel.modelv6.bound_max\"");
-            }
-
-            if(!(o_bmin is SharpGLTF.IO.JsonList jl_bmin) || (jl_bmin.Aggregate(true, (m, v) => m && (v is float || v is double)) == false)) {
-                throw new Exception($"Node {node.Name} is a v6 model and \"diesel.modelv6.bound_min\" is not float[]");
-            }
-            else
-            {
-                v_bmin = new Vector3(Convert.ToSingle(jl_bmin[0]), Convert.ToSingle(jl_bmin[1]), Convert.ToSingle(jl_bmin[2]));
-            }
-
-            if (!(o_bmax is SharpGLTF.IO.JsonList jl_bmax) || (jl_bmax.Aggregate(true, (m, v) => m && (v is float || v is double)) == false)) {
-                throw new Exception($"Node {node.Name} is a v6 model and \"diesel.modelv6.bound_max\" is not float[]");
-            }
-            else
-            {
-                v_bmax = new Vector3(Convert.ToSingle(jl_bmax[0]), Convert.ToSingle(jl_bmax[1]), Convert.ToSingle(jl_bmax[2]));
-            }*/
-
-            return new DM.Model(node.Name, Convert.ToSingle(o_unk7), v_bmin, v_bmax, parent);
         }
 
         void ImportSkin(GLTF.Node node, DM.Model model)
@@ -483,83 +419,100 @@ namespace PD2ModelParser.Importers
             DM.SkinBones skinBones = new DM.SkinBones();
 
             skinBones.global_skin_transform = Matrix4x4.Identity;
-            var rootBoneName = node.Skin.Skeleton?.Name ?? node.Skin.Name;
-            var parent = data.SectionsOfType<DM.Object3D>()
-                .FirstOrDefault(i => i.Name == rootBoneName);
-            skinBones.ProbablyRootBone = parent;
-            // I have no idea if this is universal. It looks like it might be.
-            // TODO: For skinned meshes, does mesh.Parent == mesh.SkinBones.probably_root_bone?
-            model.SetParent(parent);
 
-            // Find out what joints are actually used. Note the SkinBones system in Diesel only uses
-            // bones that have vertices weighed to them, so if a bone is used by vertices but it's
-            // parent is not, then it's parent need not be included (at least as I understand it).
-            //
-            // This whole system slightly improves performance and makes debugging messed up bone
-            // issues easier, since PD2's models don't include these bones and thus leaving them out
-            // allows for direct comparisons of matrices etc.
-            DM.Geometry geom = model.PassthroughGP.Geometry;
-            HashSet<ushort> usedBones = new HashSet<ushort>();
-            usedBones.Add(0); // Assume this is always here for sake of remapping
-            float threshold = 0.00001f;
-            for (int i=0; i<geom.vert_count; i++)
+            var skeletonNode = node.Skin.Skeleton;
+
+            if (skeletonNode == null)
             {
-                DM.GeometryWeightGroups group = geom.weight_groups[i];
-                Vector3 weights = geom.weights[i];
+                throw new Exception(
+                    $"Skinned model \"{model.Name}\" has no GLTF skeleton root.");
+            }
+
+            if (!objectsByNode.TryGetValue(skeletonNode, out var skeletonRoot))
+            {
+                throw new Exception(
+                    $"GLTF skeleton root \"{skeletonNode.Name}\" " +
+                    $"was not imported as an Object3D.");
+            }
+
+            skinBones.ProbablyRootBone = skeletonRoot;
+
+            DM.Geometry geom = model.PassthroughGP.Geometry;
+
+            if (geom.weight_groups.Count != geom.vert_count)
+            {
+                throw new Exception(
+                    $"Model \"{model.Name}\" has {geom.vert_count} vertices but " +
+                    $"{geom.weight_groups.Count} weight-group entries.");
+            }
+
+            if (geom.weights.Count != geom.vert_count)
+            {
+                throw new Exception(
+                    $"Model \"{model.Name}\" has {geom.vert_count} vertices but " +
+                    $"{geom.weights.Count} weight entries.");
+            }
+
+            HashSet<ushort> usedBones = new HashSet<ushort>();
+            const float threshold = 0.00001f;
+
+            for (int i = 0; i < geom.vert_count; i++)
+            {
+                var group = geom.weight_groups[i];
+                var weights = geom.weights[i];
+
                 if (weights.X > threshold)
                     usedBones.Add(group.Bones1);
+
                 if (weights.Y > threshold)
                     usedBones.Add(group.Bones2);
+
                 if (weights.Z > threshold)
                     usedBones.Add(group.Bones3);
             }
 
-            // Add the bones in the same order as they appear in the GLTF file to ease debugging
-            List<ushort> sortedUsedBones = usedBones.ToList();
-            sortedUsedBones.Sort();
-
             var bmi = new DM.BoneMappingItem();
-            foreach (ushort gltfId in sortedUsedBones)
+
+            foreach (ushort gltfId in usedBones.OrderBy(i => i))
             {
+                if (gltfId >= node.Skin.JointsCount)
+                {
+                    throw new Exception(
+                        $"Model \"{model.Name}\" references GLTF joint {gltfId}, " +
+                        $"but the skin only contains {node.Skin.JointsCount} joints.");
+                }
+
                 var (jointNode, ibm) = node.Skin.GetJoint(gltfId);
-                ushort modelId = (ushort) skinBones.Objects.Count;
+
+                if (!objectsByNode.TryGetValue(jointNode, out var bone))
+                {
+                    throw new Exception(
+                        $"GLTF joint {gltfId} \"{jointNode.Name}\" " +
+                        $"was not imported as an Object3D.");
+                }
+
+                ushort modelId = (ushort)skinBones.Objects.Count;
+
                 ibm.Translation *= scaleFactor;
+
                 skinBones.rotations.Add(ibm);
-                skinBones.Objects.Add(objectsByNode[jointNode]);
+                skinBones.Objects.Add(bone);
                 bmi.bones.Add(modelId);
             }
 
-            // Looks stupid, but matching up the vanilla files this is supposed to
-            // be here in addition to the later per-RenderAtom ones.
             skinBones.bone_mappings.Add(bmi);
 
-            // It makes no sense that diesel wants this, but diesel wants this.
-            // And it's consistent with the FBX importer, which worked.
-            foreach(var ra in model.RenderAtoms)
-            {
+            foreach (var ra in model.RenderAtoms)
                 skinBones.bone_mappings.Add(bmi);
-            }
 
             data.AddSection(skinBones);
             model.SkinBones = skinBones;
         }
 
-        /**
-         * Adjust all the geometry weight IDs of the mesh for use with a given SkinBones object.
-         *
-         * This is needed because the GLTF bone IDs won't necessarily match the order the bones appear
-         * in (if at all) in SkinBones. This maps the weights over to the correct new IDs, or does a
-         * bit of fallback work if a bone that doesn't exist in SkinBones is painted onto.
-         *
-         * This MUST NOT be called if ImportSkin is used to generate the skin, as that internally
-         * calls this function.
-         */
         private void RemapBoneIds(GLTF.Skin src, DM.Model model)
         {
             DM.SkinBones skinBones = model.SkinBones;
 
-            // Build a mapping of the bone indices as they appear in the SkinBones. This is
-            // our 'target' - we'll switch everything over to using these IDs
             Dictionary<DM.Object3D, ushort> sbIds = new Dictionary<DM.Object3D, ushort>();
             for (ushort sbId = 0; sbId < skinBones.count; sbId++)
             {
@@ -567,9 +520,6 @@ namespace PD2ModelParser.Importers
                 sbIds[bone] = sbId;
             }
 
-            // Find what SkinBones ID should be used for any given bone. This might seem obvious, but what if
-            // the bone weights are painted to in the model doesn't actually exist in the SkinBones? The solution
-            // is to use the parent, since that's most likely to look right.
             ushort? LookupNewBoneId(DM.Object3D bone)
             {
                 ushort sbId;
@@ -577,22 +527,25 @@ namespace PD2ModelParser.Importers
                 if (found)
                     return sbId;
 
-                // Not found in SkinBones, does this bone have a parent we can try?
                 return bone.Parent != null ? LookupNewBoneId(bone.Parent) : null;
             }
 
-            // Track the IDs of the bones between GLTF and the bones structure, since we'll need to
-            // edit the model to use the new IDs.
             Dictionary<ushort, ushort> idMapping = new Dictionary<ushort, ushort>();
             for (ushort gltfId = 0; gltfId < src.JointsCount; gltfId++)
             {
                 (GLTF.Node jointNode, _) = src.GetJoint(gltfId);
-                DM.Object3D obj = objectsByNode[jointNode];
+
+                if (!objectsByNode.TryGetValue(jointNode, out var obj))
+                {
+                    throw new Exception(
+                        $"GLTF joint {gltfId} \"{jointNode.Name}\" " +
+                        $"was not imported as an Object3D.");
+                }
+
                 ushort? id = LookupNewBoneId(obj);
                 idMapping[gltfId] = id ?? 0;
             }
 
-            // Remap the bone IDs in the geometry
             DM.Geometry geom = model.PassthroughGP.Geometry;
             for (int i = 0; i < geom.vert_count; i++)
             {
@@ -617,10 +570,9 @@ namespace PD2ModelParser.Importers
             {
                 geom.Headers.Clear();
 
-                // Have to specify conv, as the type inference isn't smart enough to figure that out.
                 void AddToGeom<TD>(ref List<TD> dest, uint size, DM.GeometryChannelTypes ct, IList<TD> src)
                 {
-                    if(src.Count > 0)
+                    if (src.Count > 0)
                     {
                         geom.Headers.Add(new DM.GeometryHeader(size, ct));
                         dest = src.ToList();
@@ -628,11 +580,9 @@ namespace PD2ModelParser.Importers
                 }
 
                 AddToGeom(ref geom.verts, 3, DM.GeometryChannelTypes.POSITION0, md.verts);
-
                 AddToGeom(ref geom.normals, 8, DM.GeometryChannelTypes.NORMAL0, md.normals);
                 AddToGeom(ref geom.binormals, 8, DM.GeometryChannelTypes.BINORMAL0, md.binormals);
                 AddToGeom(ref geom.tangents, 8, DM.GeometryChannelTypes.TANGENT0, md.tangents);
-
                 AddToGeom(ref geom.vertex_colors, 5, DM.GeometryChannelTypes.COLOR0, md.vertex_colors);
 
                 for (var i = 0; i < md.uv0.Length; i++)
@@ -642,11 +592,33 @@ namespace PD2ModelParser.Importers
 
                     AddToGeom(ref geom.UVs[i], 9, ct, md.uv0[i]);
                 }
+
+                if (md.weights.Count > 0 && md.weights.Count != md.verts.Count)
+                {
+                    throw new Exception(
+                        $"Mesh has {md.verts.Count} vertices but {md.weights.Count} weights.");
+                }
+
+                if (md.weightGroups.Count > 0 && md.weightGroups.Count != md.verts.Count)
+                {
+                    throw new Exception(
+                        $"Mesh has {md.verts.Count} vertices but {md.weightGroups.Count} weight groups.");
+                }
+
+                if (md.weights.Count > 0 && md.weightGroups.Count == 0)
+                {
+                    throw new Exception("Mesh has weights but no weight groups.");
+                }
+
+                if (md.weightGroups.Count > 0 && md.weights.Count == 0)
+                {
+                    throw new Exception("Mesh has weight groups but no weights.");
+                }
+
                 AddToGeom(ref geom.weights, 3, DM.GeometryChannelTypes.BLENDWEIGHT0, md.weights);
                 AddToGeom(ref geom.weight_groups, 7, DM.GeometryChannelTypes.BLENDINDICES0, md.weightGroups);
 
                 geom.vert_count = (uint)geom.verts.Count;
-
                 topo.facelist = md.faces;
             }
 
@@ -687,21 +659,24 @@ namespace PD2ModelParser.Importers
                 var idx = this.verts.Count;
                 this.verts.Add(vtx.pos);
                 vtx.vtx_col.WithValue(v => this.vertex_colors.Add(v.ToGeometryColor()));
-                vtx.normal.WithValue(v =>  this.normals.Add(v));
+                vtx.normal.WithValue(v => this.normals.Add(v));
                 vtx.tangent.WithValue(v => this.tangents.Add(v));
-                vtx.binormal.WithValue(v =>this.binormals.Add(v));
+                vtx.binormal.WithValue(v => this.binormals.Add(v));
                 for (var i = 0; i < 8; i++)
                 {
                     vtx.uv[i].WithValue(v => this.uv0[i].Add(v));
                 }
                 vtx.weight.WithValue(v => this.weights.Add(v));
-                if(vtx.weightGroups != null) { this.weightGroups.Add(vtx.weightGroups); }
+                if (vtx.weightGroups != null)
+                {
+                    this.weightGroups.Add(vtx.weightGroups);
+                }
                 return idx;
             }
 
             public void AppendVertices(IEnumerable<Vertex> vertices)
             {
-                foreach(var i in vertices)
+                foreach (var i in vertices)
                 {
                     AppendVertex(i);
                 }
@@ -709,7 +684,6 @@ namespace PD2ModelParser.Importers
 
             public static MeshData FromGltfMesh(GLTF.Mesh mesh)
             {
-
                 var vcount = mesh.Primitives.Select(prim => prim.VertexAccessors["POSITION"].Count).Sum();
                 if (vcount >= ushort.MaxValue)
                 {
@@ -744,13 +718,13 @@ namespace PD2ModelParser.Importers
                     };
 
                     var vertexIds = new Dictionary<Vertex, int>();
-                    foreach(var (A,B,C) in primFaces)
+                    foreach (var (A, B, C) in primFaces)
                     {
                         var vtxA = vertices[A];
                         var vtxB = vertices[B];
                         var vtxC = vertices[C];
 
-                        if(!vertexIds.ContainsKey(vtxA))
+                        if (!vertexIds.ContainsKey(vtxA))
                         {
                             vertexIds[vtxA] = ms.AppendVertex(vtxA);
                         }
@@ -778,14 +752,15 @@ namespace PD2ModelParser.Importers
                     currentBaseIndex += ra.TriangleCount * 3;
                     currentBaseVertex += ra.GeometrySliceLength;
                 }
+
                 return ms;
             }
 
             static IEnumerable<Vertex> GetVerticesFromPrimitive(GLTF.MeshPrimitive prim)
             {
                 var pos = prim.VertexAccessors["POSITION"];
-                //pos = prim.GetVertexAccessor("POSITON");
-                var result = pos.AsVector3Array().Select((p, idx) => {
+                var result = pos.AsVector3Array().Select((p, idx) =>
+                {
                     return new Vertex { pos = p };
                 });
 
@@ -793,7 +768,11 @@ namespace PD2ModelParser.Importers
                 if (normal != null && normal.Count > 0)
                 {
                     var na = normal.AsVector3Array();
-                    result = result.Select((vtx, idx) => { vtx.normal = na[idx]; return vtx; });
+                    result = result.Select((vtx, idx) =>
+                    {
+                        vtx.normal = na[idx];
+                        return vtx;
+                    });
                 }
 
                 prim.VertexAccessors.TryGetValue("TANGENT", out var tangent);
@@ -807,7 +786,6 @@ namespace PD2ModelParser.Importers
                         var binormal = Vector3.Cross(tangent_vector, vtx.normal.Value) * et.W;
                         vtx.tangent = tangent_vector;
                         vtx.binormal = binormal;
-
                         return vtx;
                     });
                 }
@@ -818,29 +796,42 @@ namespace PD2ModelParser.Importers
                     if (vcols.Dimensions == GLTF.DimensionType.VEC4)
                     {
                         var vca = vcols.AsVector4Array();
-                        result = result.Select((vtx, idx) => { vtx.vtx_col = vca[idx]; return vtx; });
+                        result = result.Select((vtx, idx) =>
+                        {
+                            vtx.vtx_col = vca[idx];
+                            return vtx;
+                        });
                     }
                     else
                     {
                         var vca = vcols.AsVector3Array();
-                        // TODO: Does Diesel have opaque be 1, 0, or 255?
-                        result = result.Select((vtx, idx) => { vtx.vtx_col = new Vector4(vca[idx], 1.0f); return vtx; });
+                        result = result.Select((vtx, idx) =>
+                        {
+                            vtx.vtx_col = new Vector4(vca[idx], 1.0f);
+                            return vtx;
+                        });
                     }
                 }
 
                 for (int i = 0; i < 8; i++)
                 {
-                    var ii = i; // Closures capture by reference, and i is declared outside the loop body in for.
+                    var ii = i;
                     prim.VertexAccessors.TryGetValue($"TEXCOORD_{ii}", out var uv0);
                     if (uv0 != null && uv0.Count > 0)
                     {
                         var uva = uv0.AsVector2Array();
-                        result = result.Select((vtx, idx) => { vtx.uv[ii] = new Vector2(uva[idx].X, 1-uva[idx].Y); return vtx; });
+                        result = result.Select((vtx, idx) =>
+                        {
+                            vtx.uv[ii] = new Vector2(uva[idx].X, 1 - uva[idx].Y);
+                            return vtx;
+                        });
                     }
                 }
 
-                // If tangents are missing, but we have POSITION, NORMAL and TEXCOORD_0, we can try and hope we can generate tangents.
-                if ((tangent == null || tangent.Count == 0) && prim.VertexAccessors.ContainsKey("POSITION") && prim.VertexAccessors.ContainsKey("NORMAL") && prim.VertexAccessors.Keys.Any(k => k.StartsWith("TEXCOORD_")))
+                if ((tangent == null || tangent.Count == 0) &&
+                    prim.VertexAccessors.ContainsKey("POSITION") &&
+                    prim.VertexAccessors.ContainsKey("NORMAL") &&
+                    prim.VertexAccessors.Keys.Any(k => k.StartsWith("TEXCOORD_")))
                 {
                     try
                     {
@@ -861,41 +852,57 @@ namespace PD2ModelParser.Importers
                     }
                     catch { }
 
-                    // Local arrays
                     var positions = prim.VertexAccessors["POSITION"].AsVector3Array().ToArray();
                     var normalsArr = prim.VertexAccessors["NORMAL"].AsVector3Array().ToArray();
                     string uvKey = prim.VertexAccessors.Keys.First(k => k.StartsWith("TEXCOORD_"));
                     var uvs = prim.VertexAccessors[uvKey].AsVector2Array().Select(u => new Vector2(u.X, u.Y)).ToArray();
                     var tris = prim.GetTriangleIndices().ToList();
-                    if (positions.Length == 0 || normalsArr.Length == 0 || uvs.Length == 0 || tris.Count == 0)
+
+                    if (positions.Length != 0 && normalsArr.Length != 0 && uvs.Length != 0 && tris.Count != 0)
                     {
-                        // nothing to do
-                    }
-                    else
-                    {
-                        // accumulate
                         int vn = positions.Length;
                         var tan1 = new Vector3[vn];
                         var tan2 = new Vector3[vn];
+
                         for (int i = 0; i < tris.Count; i++)
                         {
                             var t = tris[i];
                             int i1 = t.A, i2 = t.B, i3 = t.C;
-                            var v1 = positions[i1]; var v2 = positions[i2]; var v3 = positions[i3];
-                            var w1 = uvs[i1]; var w2 = uvs[i2]; var w3 = uvs[i3];
-                            var x1 = v2.X - v1.X; var x2 = v3.X - v1.X;
-                            var y1 = v2.Y - v1.Y; var y2 = v3.Y - v1.Y;
-                            var z1 = v2.Z - v1.Z; var z2 = v3.Z - v1.Z;
-                            var s1 = w2.X - w1.X; var s2 = w3.X - w1.X;
-                            var t1 = w2.Y - w1.Y; var t2 = w3.Y - w1.Y;
+                            var v1 = positions[i1];
+                            var v2 = positions[i2];
+                            var v3 = positions[i3];
+                            var w1 = uvs[i1];
+                            var w2 = uvs[i2];
+                            var w3 = uvs[i3];
+                            var x1 = v2.X - v1.X;
+                            var x2 = v3.X - v1.X;
+                            var y1 = v2.Y - v1.Y;
+                            var y2 = v3.Y - v1.Y;
+                            var z1 = v2.Z - v1.Z;
+                            var z2 = v3.Z - v1.Z;
+                            var s1 = w2.X - w1.X;
+                            var s2 = w3.X - w1.X;
+                            var t1 = w2.Y - w1.Y;
+                            var t2 = w3.Y - w1.Y;
                             float denom = (s1 * t2 - s2 * t1);
                             if (Math.Abs(denom) < 1e-9f) continue;
                             float r = 1.0f / denom;
-                            var sdir = new Vector3((t2 * x1 - t1 * x2) * r, (t2 * y1 - t1 * y2) * r, (t2 * z1 - t1 * z2) * r);
-                            var tdir = new Vector3((s1 * x2 - s2 * x1) * r, (s1 * y2 - s2 * y1) * r, (s1 * z2 - s2 * z1) * r);
-                            tan1[i1] += sdir; tan1[i2] += sdir; tan1[i3] += sdir;
-                            tan2[i1] += tdir; tan2[i2] += tdir; tan2[i3] += tdir;
+                            var sdir = new Vector3(
+                                (t2 * x1 - t1 * x2) * r,
+                                (t2 * y1 - t1 * y2) * r,
+                                (t2 * z1 - t1 * z2) * r);
+                            var tdir = new Vector3(
+                                (s1 * x2 - s2 * x1) * r,
+                                (s1 * y2 - s2 * y1) * r,
+                                (s1 * z2 - s2 * z1) * r);
+                            tan1[i1] += sdir;
+                            tan1[i2] += sdir;
+                            tan1[i3] += sdir;
+                            tan2[i1] += tdir;
+                            tan2[i2] += tdir;
+                            tan2[i3] += tdir;
                         }
+
                         var outT = new Vector4[vn];
                         for (int i = 0; i < vn; i++)
                         {
@@ -909,33 +916,58 @@ namespace PD2ModelParser.Importers
                             outT[i] = new Vector4(orth, w);
                         }
 
-                        result = result.Select((vtx, idx) => { vtx.tangent = new Vector3(outT[idx].X, outT[idx].Y, outT[idx].Z); vtx.binormal = Vector3.Cross(vtx.tangent.Value, vtx.normal.Value) * outT[idx].W; return vtx; });
+                        result = result.Select((vtx, idx) =>
+                        {
+                            vtx.tangent = new Vector3(outT[idx].X, outT[idx].Y, outT[idx].Z);
+                            vtx.binormal = Vector3.Cross(vtx.tangent.Value, vtx.normal.Value) * outT[idx].W;
+                            return vtx;
+                        });
                     }
                 }
 
                 prim.VertexAccessors.TryGetValue("JOINTS_0", out var joints);
                 prim.VertexAccessors.TryGetValue("WEIGHTS_0", out var weights);
-                if(joints != null && joints.Count > 0)
+
+                if (joints != null && joints.Count > 0)
                 {
+                    if (weights == null || weights.Count != joints.Count)
+                    {
+                        throw new Exception(
+                            $"{prim.LogicalParent.Name} has JOINTS_0 without matching WEIGHTS_0.");
+                    }
+
                     var ja = joints.AsVector4Array();
                     var wa = weights.AsVector4Array();
+
                     result = result.Select((vtx, idx) =>
                     {
                         var gltfWeight = wa[idx];
-                        vtx.weight = new Vector3(gltfWeight.X, gltfWeight.Y, gltfWeight.Z);
-                        if(gltfWeight.W > 0)
+
+                        vtx.weight = new Vector3(
+                            gltfWeight.X,
+                            gltfWeight.Y,
+                            gltfWeight.Z);
+
+                        if (gltfWeight.W > 0.00001f)
                         {
-                            Log.Default.Warn($"{prim.LogicalParent.Name} has a vertex with >3 weights at {vtx.pos}!");
+                            Log.Default.Warn(
+                                $"{prim.LogicalParent.Name} has a vertex with a fourth " +
+                                $"non-zero weight at {vtx.pos}; Diesel only supports three.");
                         }
+
                         vtx.weightGroups = new DM.GeometryWeightGroups(
                             (ushort)ja[idx].X,
                             (ushort)ja[idx].Y,
                             (ushort)ja[idx].Z,
-                            (ushort)ja[idx].W
-                        );
+                            (ushort)ja[idx].W);
 
                         return vtx;
                     });
+                }
+                else if (weights != null && weights.Count > 0)
+                {
+                    throw new Exception(
+                        $"{prim.LogicalParent.Name} has WEIGHTS_0 without JOINTS_0.");
                 }
 
                 return result;
@@ -989,18 +1021,18 @@ namespace PD2ModelParser.Importers
 
         private void ImportAnimations(GLTF.ModelRoot root)
         {
-            foreach(var anim in root.LogicalAnimations)
+            foreach (var anim in root.LogicalAnimations)
             {
-                foreach(var chan in anim.Channels)
+                foreach (var chan in anim.Channels)
                 {
                     var node = chan.TargetNode;
                     var targetObject = objectsByNode[node];
-                    if(chan.TargetNodePath == GLTF.PropertyPath.rotation)
+                    if (chan.TargetNodePath == GLTF.PropertyPath.rotation)
                     {
                         var sampler = chan.GetRotationSampler();
                         AddRotationAnimation(targetObject, sampler);
                     }
-                    else if(chan.TargetNodePath == GLTF.PropertyPath.translation)
+                    else if (chan.TargetNodePath == GLTF.PropertyPath.translation)
                     {
                         var sampler = chan.GetTranslationSampler();
                         AddTranslationAnimation(targetObject, sampler);
@@ -1012,19 +1044,20 @@ namespace PD2ModelParser.Importers
         private void AddRotationAnimation(DM.Object3D targetObject, GLTF.IAnimationSampler<Quaternion> sampler)
         {
             var controller = new DM.QuatLinearRotationController();
-            foreach(var (key, value) in sampler.GetLinearKeys())
+            foreach (var (key, value) in sampler.GetLinearKeys())
             {
                 controller.Keyframes.Add(new DM.Keyframe<Quaternion>(key, value));
             }
             controller.KeyframeLength = controller.Keyframes.Select(i => i.Timestamp).Max();
 
-            if(targetObject.Animations.Count == 0)
+            if (targetObject.Animations.Count == 0)
             {
                 targetObject.Animations.Add(controller);
                 targetObject.Animations.Add(null);
                 targetObject.Animations.Add(null);
             }
-            else if(targetObject.Animations.Count == 1 && (targetObject.Animations[0].GetType() == typeof(DM.LinearVector3Controller))) {
+            else if (targetObject.Animations.Count == 1 && (targetObject.Animations[0].GetType() == typeof(DM.LinearVector3Controller)))
+            {
                 targetObject.Animations.Insert(0, controller);
             }
             else
@@ -1037,7 +1070,7 @@ namespace PD2ModelParser.Importers
         private void AddTranslationAnimation(DM.Object3D target, GLTF.IAnimationSampler<Vector3> sampler)
         {
             var controller = new DM.LinearVector3Controller();
-            foreach(var (ts, v) in sampler.GetLinearKeys())
+            foreach (var (ts, v) in sampler.GetLinearKeys())
             {
                 controller.Keyframes.Add(new DM.Keyframe<Vector3>(ts, v * scaleFactor));
             }
@@ -1047,7 +1080,7 @@ namespace PD2ModelParser.Importers
             {
                 target.Animations.Add(controller);
             }
-            else if(target.Animations.Count == 3
+            else if (target.Animations.Count == 3
                 && target.Animations[0].GetType() == typeof(DM.QuatLinearRotationController)
                 && target.Animations[1] == null
                 && target.Animations[2] == null)
