@@ -149,6 +149,7 @@ namespace PD2ModelParser.Importers
         /// component of every node on import.
         /// </remarks>
         float scaleFactor = 100;
+        Matrix4x4 axisCorrection = Matrix4x4.CreateRotationX(MathF.PI / 2);
 
         public GltfImporter(FullModelData data)
         {
@@ -197,15 +198,16 @@ namespace PD2ModelParser.Importers
         {
             this.createModels = createModels;
 
-            foreach(var node in root.DefaultScene.VisualChildren)
+            foreach (var node in root.DefaultScene.VisualChildren)
             {
                 DM.Object3D parent = null;
                 try
                 {
                     parent = parentFinder(node.Name);
                 }
-                catch { } // TODO: Call with a better parentFinder that doesn't need this.
-                ImportNode(node, parent);
+                catch { }
+
+                ImportNode(node, parent, axisCorrection);
             }
 
             foreach (var i in toSkin)
@@ -221,7 +223,7 @@ namespace PD2ModelParser.Importers
             ImportAnimations(root);
         }
 
-        void ImportNode(GLTF.Node node, DM.Object3D parent)
+        void ImportNode(GLTF.Node node, DM.Object3D parent, Matrix4x4 parentCorrection)
         {
             var hashname = HashName.FromNumberOrString(node.Name);
 
@@ -316,9 +318,9 @@ namespace PD2ModelParser.Importers
 
             (obj as DM.Model)?.UpdateBounds();
 
-            foreach(var child in node.VisualChildren)
+            foreach (var child in node.VisualChildren)
             {
-                ImportNode(child, obj);
+                ImportNode(child, obj, Matrix4x4.Identity);
             }
         }
 

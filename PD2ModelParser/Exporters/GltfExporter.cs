@@ -45,6 +45,39 @@ namespace PD2ModelParser.Exporters
         /// </remarks>
         float scaleFactor = 0.01f;
 
+        List<Object3D> GetSkeletonObjects(SkinBones skinBones)
+        {
+            var bones = new List<Object3D>();
+
+            foreach (var bone in skinBones.Objects)
+            {
+                if (bone != null && !bones.Contains(bone))
+                    bones.Add(bone);
+            }
+
+            bool added;
+
+            do
+            {
+                added = false;
+
+                foreach (var bone in bones.ToList())
+                {
+                    foreach (var child in bone.children)
+                    {
+                        if (!bones.Contains(child))
+                        {
+                            bones.Add(child);
+                            added = true;
+                        }
+                    }
+                }
+
+            } while (added);
+
+            return bones;
+        }
+
         GLTF.ModelRoot Convert(FullModelData data)
         {
             materialsBySection = new Dictionary<ISection, GLTF.Material>();
@@ -68,12 +101,15 @@ namespace PD2ModelParser.Exporters
                 materialsBySection[ms] = root.CreateMaterial(ms.HashName.String);
             }
 
-            foreach(var i in data.SectionsOfType<Object3D>().Where(i => i.Parent == null))
+            var axisCorrection = scene.CreateNode("PD2_AxisCorrection");
+            axisCorrection.LocalMatrix = Matrix4x4.CreateRotationX(-MathF.PI / 2);
+
+            foreach (var i in data.SectionsOfType<Object3D>().Where(i => i.Parent == null))
             {
-                CreateNodeFromObject3D(i, scene);
+                CreateNodeFromObject3D(i, axisCorrection);
             }
 
-            foreach(var (thing, node) in toSkin)
+            foreach (var (thing, node) in toSkin)
             {
                 SkinModel(thing, node);
             }
@@ -102,15 +138,9 @@ namespace PD2ModelParser.Exporters
                     throw new Exception($"In object \"{thing.Name}\" ({thing.SectionId}), non-TRS matrix");
                 }
 
-                // We only did that to be sure it was a TRS matrix. Knowing it is, and knowing we only
-                // want to affect the translation, less stability problems exist by directly changing
-                // just the cells that are the translation part.
-
                 var mat = thing.Transform;
                 mat.Translation = mat.Translation * scaleFactor;
 
-                // Some models in the wild need this doing to them, god knows why,
-                // but bogus fourth rows are a thing.
                 mat.M14 = 0;
                 mat.M24 = 0;
                 mat.M34 = 0;
@@ -175,25 +205,67 @@ namespace PD2ModelParser.Exporters
         void SkinModel(Model model, GLTF.Node node)
         {
             if (model.SkinBones == null)
-            {
                 return;
-            }
 
             var skinbones = model.SkinBones;
-            var skin = root.CreateSkin(model.Name + "_Skin");
-            skin.Skeleton = nodesBySection[skinbones.ProbablyRootBone];
+            var skeletonObjects = GetSkeletonObjects(skinbones);
 
-            var wt = node.WorldMatrix;
+            if (skeletonObjects.Count == 0)
+                return;
+
+            var skin = root.CreateSkin(model.Name + "_Skin");
+
+            var skeletonRootNode = nodesBySection[skinbones.ProbablyRootBone];
+            skin.Skeleton = skeletonRootNode;
+
             node.LocalTransform = Matrix4x4.Identity;
 
-            var joints2 = skinbones.bone_mappings[0].bones.Select(b => {
-                var jointNode = nodesBySection[skinbones.Objects[(int)b]];
-                var ibm = skinbones.rotations[(int)b];
-                ibm.Translation *= scaleFactor;
-                return (jointNode, ibm);
-            }).ToArray();
+            var joints = new List<(GLTF.Node, Matrix4x4)>();
 
-            skin.BindJoints(joints2);
+            foreach (var bone in skeletonObjects)
+            {
+                if (!nodesBySection.TryGetValue(bone, out var jointNode))
+                {
+                    throw new Exception(
+                        $"Skeleton object \"{bone.Name}\" ({bone.SectionId}) " +
+                        $"does not have a GLTF node.");
+                }
+
+                Matrix4x4 ibm;
+
+                int skinBoneIndex = skinbones.Objects.IndexOf(bone);
+
+                if (skinBoneIndex >= 0)
+                {
+                    ibm = skinbones.rotations[skinBoneIndex];
+                }
+                else
+                {
+                    if (!Matrix4x4.Invert(bone.WorldTransform, out ibm))
+                    {
+                        throw new Exception(
+                            $"Cannot invert world transform for bone \"{bone.Name}\" " +
+                            $"({bone.SectionId}).");
+                    }
+                }
+
+                ibm.Translation *= scaleFactor;
+
+                joints.Add((jointNode, ibm));
+            }
+
+            Log.Default.Info(
+            $"Binding {joints.Count} joints for {model.Name}, " +
+            $"skeleton root = {skeletonRootNode.Name}");
+
+            foreach (var (joint, _) in joints)
+            {
+                Log.Default.Info(
+                    $"  Joint: {joint.Name}, parent = " +
+                    $"{joint.VisualParent?.Name ?? "NULL"}");
+            }
+            skin.BindJoints(joints);
+
             node.Skin = skin;
         }
 
@@ -315,11 +387,6 @@ namespace PD2ModelParser.Exporters
                         return new Vector4(tangent, 1);
                     }
                     var sgn = float.IsNaN(dot) ? 1 : Math.Sign(dot);
-
-                    // A few models have vertices where tangent==binorm, which is silly
-                    // also breaks because SharpGLTF tries to do validation. So we return
-                    // 1 in that case, which is probably also unhelpful. I'm not 100% sure
-                    // how important having sane binormals is anyway.
                     return new Vector4(tangent, sgn != 0 ? sgn : 1);
                 };
 
