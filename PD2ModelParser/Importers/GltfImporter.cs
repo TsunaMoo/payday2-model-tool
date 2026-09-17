@@ -208,6 +208,29 @@ namespace PD2ModelParser.Importers
             ImportAnimations(root);
         }
 
+        void UpdatePrimitiveModelFromMesh(GLTF.Mesh gmesh,DM.Model model)
+        {
+            var md = MeshData.FromGltfMesh(gmesh);
+
+            if (md.verts == null || md.verts.Count == 0)
+            {
+                throw new Exception(
+                    $"Primitive model {model.Name} has no vertices.");
+            }
+
+            Vector3 boundsMin =
+                md.verts.Aggregate(MathUtil.Min) * scaleFactor;
+
+            Vector3 boundsMax =
+                md.verts.Aggregate(MathUtil.Max) * scaleFactor;
+
+            model.BoundsMin = boundsMin;
+            model.BoundsMax = boundsMax;
+
+            model.v6_unknown7 =
+                CalculateV6Unknown7(boundsMin, boundsMax);
+        }
+
         void ImportNode(GLTF.Node node, DM.Object3D parent, Matrix4x4 parentCorrection)
         {
             var hashname = HashName.FromNumberOrString(node.Name);
@@ -232,12 +255,24 @@ namespace PD2ModelParser.Importers
                 }
                 else if (createModels && node.Mesh != null)
                 {
-                    obj = CreateNewModel(node.Mesh, node.Name);
-
-                    if (node.Skin != null)
+                    if (IsPrimitiveModelName(node.Name))
                     {
-                        toSkin.Add((node, obj as DM.Model));
-                        toRemap.Add((node.Skin, obj as DM.Model));
+                        obj = CreateNewPrimitiveModel(
+                            node.Mesh,
+                            node.Name,
+                            parent);
+                    }
+                    else
+                    {
+                        obj = CreateNewModel(
+                            node.Mesh,
+                            node.Name);
+
+                        if (node.Skin != null)
+                        {
+                            toSkin.Add((node, obj as DM.Model));
+                            toRemap.Add((node.Skin, obj as DM.Model));
+                        }
                     }
                 }
                 else if (createModels && node.PunctualLight != null)
@@ -278,14 +313,31 @@ namespace PD2ModelParser.Importers
                 }
                 else if (node.Mesh != null && obj is DM.Model mod)
                 {
-                    OverwriteModel(node.Mesh, mod);
-
-                    if (node.Skin != null)
+                    if (IsPrimitiveModelName(node.Name))
                     {
-                        if (overwriteRigging)
-                            toSkin.Add((node, mod));
+                        if (mod.version != 6)
+                        {
+                            throw new Exception(
+                                $"Primitive {node.Name} already exists as model version {mod.version}.");
+                        }
 
-                        toRemap.Add((node.Skin, mod));
+                        UpdatePrimitiveModelFromMesh(
+                            node.Mesh,
+                            mod);
+                    }
+                    else
+                    {
+                        OverwriteModel(
+                            node.Mesh,
+                            mod);
+
+                        if (node.Skin != null)
+                        {
+                            if (overwriteRigging)
+                                toSkin.Add((node, mod));
+
+                            toRemap.Add((node.Skin, mod));
+                        }
                     }
                 }
                 else if (node.PunctualLight != null)
@@ -364,6 +416,74 @@ namespace PD2ModelParser.Importers
             throw new NotImplementedException("Lights are currently not implemented");
         }
 
+        bool IsPrimitiveModelName(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+                return false;
+
+            return
+                name.StartsWith("c_sphere_", StringComparison.OrdinalIgnoreCase) ||
+                name.StartsWith("c_capsule_", StringComparison.OrdinalIgnoreCase) ||
+                name.StartsWith("c_box_", StringComparison.OrdinalIgnoreCase);
+        }
+
+        bool IsCapsuleModelName(string name)
+        {
+            return !string.IsNullOrEmpty(name) &&
+                name.StartsWith("c_capsule_", StringComparison.OrdinalIgnoreCase);
+        }
+
+        DM.Model CreateNewPrimitiveModel(GLTF.Mesh gmesh, string name, DM.Object3D parent)
+        {
+            var md = MeshData.FromGltfMesh(gmesh);
+
+            if (md.verts == null || md.verts.Count == 0)
+            {
+                throw new Exception(
+                    $"Primitive model {name} has no vertices.");
+            }
+
+            Vector3 boundsMin = md.verts.Aggregate(MathUtil.Min) * scaleFactor;
+            Vector3 boundsMax = md.verts.Aggregate(MathUtil.Max) * scaleFactor;
+
+            float unknown7 = CalculateV6Unknown7(boundsMin, boundsMax);
+
+            Log.Default.Warn(
+                "IMPORT PRIMITIVE: Name={0}, BoundsMin={1}, BoundsMax={2}, Unknown7={3}",
+                name,
+                boundsMin,
+                boundsMax,
+                unknown7);
+
+            return new DM.Model(
+                name,
+                unknown7,
+                boundsMin,
+                boundsMax,
+                parent);
+        }
+
+        float CalculateV6Unknown7(Vector3 boundsMin, Vector3 boundsMax)
+        {
+            float result = 0;
+
+            foreach (float x in new[] { boundsMin.X, boundsMax.X })
+            {
+                foreach (float y in new[] { boundsMin.Y, boundsMax.Y })
+                {
+                    foreach (float z in new[] { boundsMin.Z, boundsMax.Z })
+                    {
+                        float distance = new Vector3(x, y, z).Length();
+
+                        if (distance > result)
+                            result = distance;
+                    }
+                }
+            }
+
+            return result;
+        }
+
         DM.Model CreateNewModel(GLTF.Mesh gmesh, string name)
         {
             var md = MeshData.FromGltfMesh(gmesh);
@@ -409,9 +529,120 @@ namespace PD2ModelParser.Importers
             return model;
         }
 
-        DM.Model CreateNewModelv6(GLTF.Node node, DM.Object3D parent)
+        bool IsAncestorOf(GLTF.Node ancestor, GLTF.Node node)
         {
-            throw new NotImplementedException("Creating v6 models is not currently supported");
+            if (ancestor == null || node == null)
+                return false;
+
+            for (var current = node;
+                 current != null;
+                 current = current.VisualParent)
+            {
+                if (current == ancestor)
+                    return true;
+            }
+
+            return false;
+        }
+
+        DM.Object3D FindCommonSkeletonRoot(GLTF.Skin skin, DM.Model model)
+        {
+            if (skin == null || skin.JointsCount == 0 || model == null)
+                return null;
+
+            var firstJointResult = skin.GetJoint((ushort)0);
+            GLTF.Node firstJoint = firstJointResult.Item1;
+
+            if (firstJoint == null)
+                return null;
+
+            GLTF.Node modelNode = null;
+
+            foreach (var pair in objectsByNode)
+            {
+                if (pair.Value == model)
+                {
+                    modelNode = pair.Key;
+                    break;
+                }
+            }
+
+            if (modelNode != null)
+            {
+                var modelParentNode = modelNode.VisualParent;
+
+                if (modelParentNode != null &&
+                    IsAncestorOf(modelParentNode, firstJoint))
+                {
+                    bool commonAncestor = true;
+
+                    for (ushort i = 1; i < skin.JointsCount; i++)
+                    {
+                        var jointResult = skin.GetJoint(i);
+                        GLTF.Node joint = jointResult.Item1;
+
+                        if (joint == null ||
+                            !IsAncestorOf(modelParentNode, joint))
+                        {
+                            commonAncestor = false;
+                            break;
+                        }
+                    }
+
+                    if (commonAncestor &&
+                        objectsByNode.TryGetValue(
+                            modelParentNode,
+                            out var parentObject))
+                    {
+                        return parentObject;
+                    }
+                }
+            }
+
+            var commonAncestors = new HashSet<GLTF.Node>();
+
+            for (var current = firstJoint;
+                 current != null;
+                 current = current.VisualParent)
+            {
+                commonAncestors.Add(current);
+            }
+
+            for (ushort i = 1; i < skin.JointsCount; i++)
+            {
+                var jointResult = skin.GetJoint(i);
+                GLTF.Node joint = jointResult.Item1;
+
+                if (joint == null)
+                    continue;
+
+                var ancestors = new HashSet<GLTF.Node>();
+
+                for (var current = joint;
+                     current != null;
+                     current = current.VisualParent)
+                {
+                    ancestors.Add(current);
+                }
+
+                commonAncestors.IntersectWith(ancestors);
+            }
+
+            if (commonAncestors.Count == 0)
+                return null;
+
+            for (var current = firstJoint;
+                 current != null;
+                 current = current.VisualParent)
+            {
+                if (!commonAncestors.Contains(current))
+                    continue;
+
+                if (objectsByNode.TryGetValue(current, out var obj))
+                    return obj;
+            }
+
+            return null;
         }
 
         void ImportSkin(GLTF.Node node, DM.Model model)
@@ -420,19 +651,38 @@ namespace PD2ModelParser.Importers
 
             skinBones.global_skin_transform = Matrix4x4.Identity;
 
-            var skeletonNode = node.Skin.Skeleton;
+            GLTF.Skin gltfSkin = node.Skin;
 
-            if (skeletonNode == null)
+            DM.Object3D skeletonRoot;
+
+            if (gltfSkin.Skeleton != null)
             {
-                throw new Exception(
-                    $"Skinned model \"{model.Name}\" has no GLTF skeleton root.");
+                if (!objectsByNode.TryGetValue(
+                        gltfSkin.Skeleton,
+                        out skeletonRoot))
+                {
+                    throw new Exception(
+                        $"GLTF skeleton root \"{gltfSkin.Skeleton.Name}\" " +
+                        $"was not imported as an Object3D.");
+                }
             }
-
-            if (!objectsByNode.TryGetValue(skeletonNode, out var skeletonRoot))
+            else
             {
-                throw new Exception(
-                    $"GLTF skeleton root \"{skeletonNode.Name}\" " +
-                    $"was not imported as an Object3D.");
+                skeletonRoot = FindCommonSkeletonRoot(gltfSkin, model);
+
+                if (skeletonRoot == null)
+                {
+                    throw new Exception(
+                        $"Skinned model \"{model.Name}\" has no GLTF skeleton root " +
+                        "and its joint hierarchy has no common root.");
+                }
+
+                Log.Default.Warn(
+                    "GltfImporter.ImportSkin: " +
+                    "Skeleton root missing from GLTF skin for \"{0}\". " +
+                    "Recovered root from joint hierarchy: \"{1}\"",
+                    model.Name,
+                    skeletonRoot.Name);
             }
 
             skinBones.ProbablyRootBone = skeletonRoot;
