@@ -493,35 +493,39 @@ namespace PD2ModelParser.Exporters
                 var a_norm = MakeVertexAttributeAccessor("vnorm", geometry.normals, 12, GLTF.DimensionType.VEC3, MakeNormal, ma => ma.AsVector3Array());
                 result.Add(("NORMAL", a_norm));
             }
-            if (geometry.tangents.Count > 0)
+            if (geometry.uvDirectionU.Count == geometry.vert_count &&
+                geometry.uvDirectionV.Count == geometry.vert_count &&
+                geometry.normals.Count == geometry.vert_count)
             {
-                Vector4 makeTangent(Vector3 input, int index)
+                Vector4 MakeTangent(Vector3 directionU, int index)
                 {
-                    var tangent = Vector3.Normalize(input);
-                    if (!tangent.IsFinite())
+                    var normal = Vector3.Normalize(geometry.normals[index]);
+                    var tangent = directionU - normal * Vector3.Dot(normal, directionU);
+
+                    if (!normal.IsFinite() || !tangent.IsFinite() || tangent.LengthSquared() < 1e-20f)
                     {
-                        Log.Default.Warn("Vertex {0} of geometry {1}|{2} has bogus tangent ({3})", index, geometry.SectionId, geometry.HashName, tangent);
-                        tangent = new Vector3(0, 1, 0);
+                        Log.Default.Warn("Vertex {0} of geometry {1}|{2} has an unusable UV U direction ({3})", index, geometry.SectionId, geometry.HashName, directionU);
+                        normal = normal.IsFinite() ? normal : Vector3.UnitZ;
+                        var axis = MathF.Abs(normal.X) < 0.9f ? Vector3.UnitX : Vector3.UnitY;
+                        tangent = axis - normal * Vector3.Dot(normal, axis);
                     }
-                    if (!tangent.IsUnitLength())
+
+                    tangent = Vector3.Normalize(tangent);
+                    var directionV = geometry.uvDirectionV[index];
+                    var handedness = Vector3.Dot(Vector3.Cross(tangent, normal), directionV);
+
+                    if (!float.IsFinite(handedness))
                     {
-                        Log.Default.Warn("Vertex {0} of geometry {1}|{2} has bogus tangent length {4} ({3})", index, geometry.SectionId, geometry.HashName, tangent, tangent.Length());
-                        tangent = new Vector3(0, 1, 0);
-                    }
-                    var binorm = geometry.binormals[index];
-                    var normal = geometry.normals[index];
-                    var txn = Vector3.Cross(tangent, normal);
-                    var dot = Vector3.Dot(txn, binorm);
-                    if (float.IsNaN(dot))
-                    {
-                        Log.Default.Warn("Weird normals in vtx {3} of geom {4}|{5}, N={0}, T={1}, B={2}, (T cross N) dot B is NaN", normal, tangent, binorm, index, geometry.SectionId, geometry.HashName);
+                        Log.Default.Warn("Vertex {0} of geometry {1}|{2} has an unusable UV V direction ({3})", index, geometry.SectionId, geometry.HashName, directionV);
                         return new Vector4(tangent, 1);
                     }
-                    var sgn = float.IsNaN(dot) ? 1 : Math.Sign(dot);
-                    return new Vector4(tangent, sgn != 0 ? sgn : 1);
-                };
-                var a_binorm = MakeVertexAttributeAccessor("vtan", geometry.tangents, 16, GLTF.DimensionType.VEC4, makeTangent, ma => ma.AsVector4Array());
-                result.Add(("TANGENT", a_binorm));
+
+                    var sign = Math.Sign(handedness);
+                    return new Vector4(tangent, sign != 0 ? sign : 1);
+                }
+
+                var a_tangent = MakeVertexAttributeAccessor("vtan", geometry.uvDirectionU, 16, GLTF.DimensionType.VEC4, MakeTangent, ma => ma.AsVector4Array());
+                result.Add(("TANGENT", a_tangent));
             }
             if (geometry.vertex_colors.Count > 0)
             {
