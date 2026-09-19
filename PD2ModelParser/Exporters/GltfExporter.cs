@@ -293,8 +293,10 @@ namespace PD2ModelParser.Exporters
             else if (size.Y >= size.X && size.Y >= size.Z) axis = 1;
             else axis = 2;
             float largest = axis == 0 ? size.X : axis == 1 ? size.Y : size.Z;
-            float Radius = axis == 0 ? MathF.Min(size.Y, size.Z) * 0.5f : axis == 1 ? MathF.Min(size.X, size.Z) * 0.5f : MathF.Min(size.X, size.Y) * 0.5f;
-            float cylinderLength = MathF.Max(0, largest - Radius * 2.0f);
+            float radiusX = axis == 0 ? size.Z * 0.5f : size.X * 0.5f;
+            float radiusY = axis == 1 ? size.Z * 0.5f : size.Y * 0.5f;
+            float capRadius = MathF.Min(radiusX, radiusY);
+            float cylinderLength = MathF.Max(0, largest - capRadius * 2.0f);
             const int segments = 24;
             const int hemisphereRings = 8;
             const int cylinderRings = 4;
@@ -305,23 +307,23 @@ namespace PD2ModelParser.Exporters
             {
                 float t = (float)y / hemisphereRings;
                 float phi = -MathF.PI * 0.5f + t * MathF.PI * 0.5f;
-                float z = -halfCylinder + MathF.Sin(phi) * Radius;
-                float ringRadius = MathF.Cos(phi) * Radius;
-                AddCapsuleRing(vertices, center, ringRadius, z, segments);
+                float z = -halfCylinder + MathF.Sin(phi) * capRadius;
+                float ringScale = MathF.Cos(phi);
+                AddCapsuleRing(vertices, center, radiusX * ringScale, radiusY * ringScale, z, segments);
             }
             for (int y = 1; y < cylinderRings; y++)
             {
                 float t = (float)y / cylinderRings;
                 float z = -halfCylinder + t * cylinderLength;
-                AddCapsuleRing(vertices, center, Radius, z, segments);
+                AddCapsuleRing(vertices, center, radiusX, radiusY, z, segments);
             }
             for (int y = 0; y <= hemisphereRings; y++)
             {
                 float t = (float)y / hemisphereRings;
                 float phi = t * MathF.PI * 0.5f;
-                float z = halfCylinder + MathF.Sin(phi) * Radius;
-                float ringRadius = MathF.Cos(phi) * Radius;
-                AddCapsuleRing(vertices, center, ringRadius, z, segments);
+                float z = halfCylinder + MathF.Sin(phi) * capRadius;
+                float ringScale = MathF.Cos(phi);
+                AddCapsuleRing(vertices, center, radiusX * ringScale, radiusY * ringScale, z, segments);
             }
             int rings = vertices.Count / (segments + 1);
             for (int y = 0; y < rings - 1; y++)
@@ -358,13 +360,13 @@ namespace PD2ModelParser.Exporters
             }
             return CreateGeneratedMesh(model.Name, vertices, [.. indices]);
         }
-        private static void AddCapsuleRing(List<Vector3> vertices, Vector3 center, float Radius, float z, int segments)
+        private static void AddCapsuleRing(List<Vector3> vertices, Vector3 center, float radiusX, float radiusY, float z, int segments)
         {
             for (int x = 0; x <= segments; x++)
             {
                 float u = (float)x / segments;
                 float theta = u * MathF.PI * 2.0f;
-                vertices.Add(center + new Vector3(MathF.Cos(theta) * Radius, MathF.Sin(theta) * Radius, z));
+                vertices.Add(center + new Vector3(MathF.Cos(theta) * radiusX, MathF.Sin(theta) * radiusY, z));
             }
         }
         private GLTF.Mesh CreateGeneratedMesh(string name, IList<Vector3> vertices, ushort[] indices)
@@ -427,7 +429,7 @@ namespace PD2ModelParser.Exporters
                 }
             }
             var attribs = GetGeometryAttributes(geometry, jointRemap);
-            foreach (var (indexAccessor, material) in CreatePrimitiveIndices(topology, model.RenderAtoms, materialGroup))
+            foreach (var (indexAccessor, material) in CreatePrimitiveIndices(topology, model.RenderAtoms, materialGroup, geometry.vert_count))
             {
                 var prim = mesh.CreatePrimitive();
                 prim.DrawPrimitiveType = GLTF.PrimitiveType.TRIANGLES;
@@ -438,25 +440,39 @@ namespace PD2ModelParser.Exporters
             }
             return mesh;
         }
-        private IEnumerable<(GLTF.Accessor, GLTF.Material)> CreatePrimitiveIndices(Topology topo, IEnumerable<RenderAtom> atoms, MaterialGroup materialGroup)
+        private IEnumerable<(GLTF.Accessor, GLTF.Material)> CreatePrimitiveIndices(Topology topo, IEnumerable<RenderAtom> atoms, MaterialGroup materialGroup, uint vertexCount)
         {
-            var buf = new ArraySegment<byte>(new byte[topo.facelist.Count * 3 * 2]);
-            var mai = new MemoryAccessInfo($"indices_{topo.HashName}", 0, topo.facelist.Count * 3, 0, GLTF.DimensionType.SCALAR, GLTF.EncodingType.UNSIGNED_SHORT);
-            var ma = new MemoryAccessor(buf, mai);
-            var array = ma.AsIntegerArray();
+            var rawIndices = new ushort[topo.facelist.Count * 3];
             for (int i = 0; i < topo.facelist.Count; i++)
             {
-                array[i * 3 + 0] = topo.facelist[i].a;
-                array[i * 3 + 1] = topo.facelist[i].b;
-                array[i * 3 + 2] = topo.facelist[i].c;
+                rawIndices[i * 3 + 0] = topo.facelist[i].a;
+                rawIndices[i * 3 + 1] = topo.facelist[i].b;
+                rawIndices[i * 3 + 2] = topo.facelist[i].c;
             }
-            var atomcount = 0;
-            foreach (var ra in atoms)
+
+            var atomList = atoms.ToList();
+            var localIndexModes = atomList
+                .Select(ra => DetectLocalIndices(rawIndices, ra, vertexCount))
+                .ToList();
+            bool localWhenAmbiguous = localIndexModes.Any(mode => mode == true) &&
+                                      !localIndexModes.Any(mode => mode == false);
+
+            for (int atomIndex = 0; atomIndex < atomList.Count; atomIndex++)
             {
-                var atom_mai = new MemoryAccessInfo($"indices_{topo.HashName}_{atomcount++}", (int)ra.BaseIndex * 2, (int)ra.TriangleCount * 3, 0, GLTF.DimensionType.SCALAR, GLTF.EncodingType.UNSIGNED_SHORT);
-                var atom_ma = new MemoryAccessor(buf, atom_mai);
-                var accessor = root.CreateAccessor();
-                accessor.SetIndexData(atom_ma);
+                var ra = atomList[atomIndex];
+                int indexCount = (int)ra.TriangleCount * 3;
+                int baseIndex = (int)ra.BaseIndex;
+                bool useLocalIndices = localIndexModes[atomIndex] ?? localWhenAmbiguous;
+                var resolvedIndices = new ushort[indexCount];
+
+                for (int i = 0; i < indexCount; i++)
+                {
+                    uint index = rawIndices[baseIndex + i];
+                    if (useLocalIndices) index += ra.BaseVertex;
+                    resolvedIndices[i] = (ushort)index;
+                }
+
+                var accessor = CreateIndexAccessor($"indices_{topo.HashName}_{atomIndex}", resolvedIndices);
                 var materialSection = materialGroup.Items[(int)ra.MaterialId];
                 if (!materialsBySection.TryGetValue(materialSection, out var material))
                 {
@@ -466,6 +482,32 @@ namespace PD2ModelParser.Exporters
                 yield
                 return (accessor, material);
             }
+        }
+
+        private static bool? DetectLocalIndices(ushort[] indices, RenderAtom atom, uint vertexCount)
+        {
+            int start = (int)atom.BaseIndex;
+            int count = (int)atom.TriangleCount * 3;
+            bool localValid = atom.GeometrySliceLength > 0;
+            bool absoluteSliceValid = atom.GeometrySliceLength > 0;
+            bool absoluteGeometryValid = true;
+
+            for (int i = 0; i < count; i++)
+            {
+                uint index = indices[start + i];
+                localValid &= index < atom.GeometrySliceLength &&
+                              index + atom.BaseVertex < vertexCount &&
+                              index + atom.BaseVertex <= ushort.MaxValue;
+                absoluteSliceValid &= index >= atom.BaseVertex &&
+                                      index - atom.BaseVertex < atom.GeometrySliceLength &&
+                                      index < vertexCount;
+                absoluteGeometryValid &= index < vertexCount;
+            }
+
+            if (localValid && !absoluteSliceValid) return true;
+            if (absoluteSliceValid && !localValid) return false;
+            if (!localValid && !absoluteSliceValid && absoluteGeometryValid) return false;
+            return null;
         }
         private List<(string, GLTF.Accessor)> GetGeometryAttributes(DieselGeometry geometry, Dictionary<int, int> jointRemap)
         {

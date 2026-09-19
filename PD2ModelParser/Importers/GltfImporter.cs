@@ -427,66 +427,8 @@ namespace PD2ModelParser.Importers
 
             Vector3 min = md.verts.Aggregate(MathUtil.Min);
             Vector3 max = md.verts.Aggregate(MathUtil.Max);
-            Vector3 size = max - min;
-
-            int axis;
-            if (size.X >= size.Y && size.X >= size.Z)
-            {
-                axis = 0;
-            }
-            else if (size.Y >= size.X && size.Y >= size.Z)
-            {
-                axis = 1;
-            }
-            else
-            {
-                axis = 2;
-            }
-
-            Vector3 axisVector = axis switch
-            {
-                0 => Vector3.UnitX,
-                1 => Vector3.UnitY,
-                _ => Vector3.UnitZ
-            };
-
-            Vector3 center = (min + max) * 0.5f;
-
-            float minAxial = float.MaxValue;
-            float maxAxial = float.MinValue;
-            float maxRadius = 0.0f;
-
-            foreach (Vector3 vertex in md.verts)
-            {
-                Vector3 relative = vertex - center;
-                float axial = Vector3.Dot(relative, axisVector);
-
-                minAxial = MathF.Min(minAxial, axial);
-                maxAxial = MathF.Max(maxAxial, axial);
-
-                Vector3 RadiusIal = relative - axisVector * axial;
-                maxRadius = MathF.Max(maxRadius, RadiusIal.Length());
-            }
-
-            maxRadius *= scaleFactor;
-            minAxial *= scaleFactor;
-            maxAxial *= scaleFactor;
-
-            Vector3 pd2Center = center * scaleFactor;
-
-            float totalLength = maxAxial - minAxial;
-            float diameter = maxRadius * 2.0f;
-            float length = MathF.Max(totalLength, diameter);
-
-            Vector3 halfSize = axis switch
-            {
-                0 => new Vector3(length, diameter, diameter) * 0.5f,
-                1 => new Vector3(diameter, length, diameter) * 0.5f,
-                _ => new Vector3(diameter, diameter, length) * 0.5f
-            };
-
-            Vector3 boundsMin = pd2Center - halfSize;
-            Vector3 boundsMax = pd2Center + halfSize;
+            Vector3 boundsMin = min * scaleFactor;
+            Vector3 boundsMax = max * scaleFactor;
             float DistanceRadius = CalculateDistanceRadius(boundsMin, boundsMax);
 
             return (boundsMin, boundsMax, DistanceRadius);
