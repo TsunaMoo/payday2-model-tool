@@ -429,7 +429,7 @@ namespace PD2ModelParser.Exporters
                 }
             }
             var attribs = GetGeometryAttributes(geometry, jointRemap);
-            foreach (var (indexAccessor, material) in CreatePrimitiveIndices(topology, model.RenderAtoms, materialGroup, geometry.vert_count))
+            foreach (var (indexAccessor, material) in CreatePrimitiveIndices(topology, model.RenderAtoms, materialGroup, geometry))
             {
                 var prim = mesh.CreatePrimitive();
                 prim.DrawPrimitiveType = GLTF.PrimitiveType.TRIANGLES;
@@ -440,7 +440,7 @@ namespace PD2ModelParser.Exporters
             }
             return mesh;
         }
-        private IEnumerable<(GLTF.Accessor, GLTF.Material)> CreatePrimitiveIndices(Topology topo, IEnumerable<RenderAtom> atoms, MaterialGroup materialGroup, uint vertexCount)
+        private IEnumerable<(GLTF.Accessor, GLTF.Material)> CreatePrimitiveIndices(Topology topo, IEnumerable<RenderAtom> atoms, MaterialGroup materialGroup, DieselGeometry geometry)
         {
             var rawIndices = new ushort[topo.facelist.Count * 3];
             for (int i = 0; i < topo.facelist.Count; i++)
@@ -452,17 +452,21 @@ namespace PD2ModelParser.Exporters
 
             var atomList = atoms.ToList();
             var localIndexModes = atomList
-                .Select(ra => DetectLocalIndices(rawIndices, ra, vertexCount))
+                .Select(ra => DetectLocalIndices(rawIndices, ra, geometry))
                 .ToList();
-            bool localWhenAmbiguous = localIndexModes.Any(mode => mode == true) &&
-                                      !localIndexModes.Any(mode => mode == false);
+            int localVotes = localIndexModes.Count(mode => mode == true);
+            int absoluteVotes = localIndexModes.Count(mode => mode == false);
+            bool? modelIndexMode = localVotes > absoluteVotes ? true :
+                                   absoluteVotes > localVotes ? false : null;
 
             for (int atomIndex = 0; atomIndex < atomList.Count; atomIndex++)
             {
                 var ra = atomList[atomIndex];
                 int indexCount = (int)ra.TriangleCount * 3;
                 int baseIndex = (int)ra.BaseIndex;
-                bool useLocalIndices = localIndexModes[atomIndex] ?? localWhenAmbiguous;
+                bool useLocalIndices = localIndexModes[atomIndex] ??
+                                       modelIndexMode ??
+                                       ra.BaseVertex != 0;
                 var resolvedIndices = new ushort[indexCount];
 
                 for (int i = 0; i < indexCount; i++)
@@ -484,8 +488,9 @@ namespace PD2ModelParser.Exporters
             }
         }
 
-        private static bool? DetectLocalIndices(ushort[] indices, RenderAtom atom, uint vertexCount)
+        private static bool? DetectLocalIndices(ushort[] indices, RenderAtom atom, DieselGeometry geometry)
         {
+            uint vertexCount = geometry.vert_count;
             int start = (int)atom.BaseIndex;
             int count = (int)atom.TriangleCount * 3;
             bool localValid = atom.GeometrySliceLength > 0;
@@ -506,8 +511,50 @@ namespace PD2ModelParser.Exporters
 
             if (localValid && !absoluteSliceValid) return true;
             if (absoluteSliceValid && !localValid) return false;
+            if (localValid && absoluteSliceValid)
+            {
+                float localScore = ScoreIndexInterpretation(indices, atom, geometry, true);
+                float absoluteScore = ScoreIndexInterpretation(indices, atom, geometry, false);
+                const float scoreTolerance = 0.05f;
+
+                if (localScore > absoluteScore + scoreTolerance) return true;
+                if (absoluteScore > localScore + scoreTolerance) return false;
+            }
             if (!localValid && !absoluteSliceValid && absoluteGeometryValid) return false;
             return null;
+        }
+
+        private static float ScoreIndexInterpretation(ushort[] indices, RenderAtom atom, DieselGeometry geometry, bool localIndices)
+        {
+            if (geometry.normals.Count != geometry.verts.Count) return float.NegativeInfinity;
+
+            int start = (int)atom.BaseIndex;
+            int count = (int)atom.TriangleCount * 3;
+            float score = 0;
+            int samples = 0;
+
+            for (int i = 0; i < count; i += 3)
+            {
+                int indexA = indices[start + i + 0] + (localIndices ? (int)atom.BaseVertex : 0);
+                int indexB = indices[start + i + 1] + (localIndices ? (int)atom.BaseVertex : 0);
+                int indexC = indices[start + i + 2] + (localIndices ? (int)atom.BaseVertex : 0);
+                var faceNormal = Vector3.Cross(
+                    geometry.verts[indexB] - geometry.verts[indexA],
+                    geometry.verts[indexC] - geometry.verts[indexA]);
+
+                if (!faceNormal.IsFinite() || faceNormal.LengthSquared() < 1e-20f) continue;
+                faceNormal = Vector3.Normalize(faceNormal);
+
+                foreach (int vertexIndex in new[] { indexA, indexB, indexC })
+                {
+                    var normal = geometry.normals[vertexIndex];
+                    if (!normal.IsFinite() || normal.LengthSquared() < 1e-20f) continue;
+                    score += MathF.Abs(Vector3.Dot(faceNormal, Vector3.Normalize(normal)));
+                    samples++;
+                }
+            }
+
+            return samples > 0 ? score / samples : float.NegativeInfinity;
         }
         private List<(string, GLTF.Accessor)> GetGeometryAttributes(DieselGeometry geometry, Dictionary<int, int> jointRemap)
         {
