@@ -46,7 +46,7 @@
             exportBttn.Name = "exportBttn";
             exportBttn.Size = new System.Drawing.Size(698, 27);
             exportBttn.TabIndex = 17;
-            exportBttn.Text = "Convert";
+            exportBttn.Text = "Export";
             exportBttn.UseVisualStyleBackColor = false;
             exportBttn.Click += ExportBttn_Click;
             // 

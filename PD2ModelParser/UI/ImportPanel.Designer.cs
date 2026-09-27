@@ -133,7 +133,7 @@ namespace PD2ModelParser.UI {
             convert.Name = "convert";
             convert.Size = new System.Drawing.Size(698, 27);
             convert.TabIndex = 9;
-            convert.Text = "Convert";
+            convert.Text = "Import";
             convert.UseVisualStyleBackColor = true;
             convert.Click += Convert_Click;
             // 
