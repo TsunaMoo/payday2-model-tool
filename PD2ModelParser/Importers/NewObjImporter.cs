@@ -358,15 +358,23 @@ namespace PD2ModelParser.Importers
                 new_faces.Add(new_f);
             }
 
-            for (int x = 0; x < new_arranged_Normals.Length; x++)
-                new_arranged_Normals[x] = Vector3.Normalize(new_arranged_Normals[x]);
-
             DieselGeometry.ComputeUvDirections(
                 obj.Verts,
                 new_arranged_UV,
                 new_faces,
                 out var uvDirectionU,
                 out var uvDirectionV);
+
+            if (obj.Uv.Count > 0 && obj.Normals.Count > 0)
+            {
+                StabilizeUvHandedness(
+                    obj.Verts,
+                    new_arranged_UV,
+                    new_arranged_Normals,
+                    new_faces,
+                    uvDirectionU,
+                    uvDirectionV);
+            }
 
             List<RenderAtom> new_Model_items2 = [];
 
@@ -403,6 +411,113 @@ namespace PD2ModelParser.Importers
             topology_section.facelist = new_faces;
         }
 
+        private static void StabilizeUvHandedness(
+            IReadOnlyList<Vector3> positions,
+            IReadOnlyList<Vector2> uvs,
+            IReadOnlyList<Vector3> normals,
+            IReadOnlyList<Face> faces,
+            IList<Vector3> directionU,
+            IList<Vector3> directionV)
+        {
+            if (positions.Count != uvs.Count ||
+                positions.Count != normals.Count ||
+                positions.Count != directionU.Count ||
+                positions.Count != directionV.Count)
+            {
+                return;
+            }
+
+            var positiveWeight = new float[positions.Count];
+            var negativeWeight = new float[positions.Count];
+
+            foreach (Face face in faces)
+            {
+                Vector3 edge1 = positions[face.b] - positions[face.a];
+                Vector3 edge2 = positions[face.c] - positions[face.a];
+                Vector2 uv1 = uvs[face.b] - uvs[face.a];
+                Vector2 uv2 = uvs[face.c] - uvs[face.a];
+
+                float determinant = uv1.X * uv2.Y - uv2.X * uv1.Y;
+                float uvScale = MathF.Sqrt(uv1.LengthSquared() * uv2.LengthSquared());
+
+                if (!float.IsFinite(determinant) ||
+                    !float.IsFinite(uvScale) ||
+                    uvScale <= 1e-20f)
+                {
+                    continue;
+                }
+
+                float quality = MathF.Abs(determinant) / uvScale;
+                if (!float.IsFinite(quality) || quality < 1e-3f)
+                    continue;
+
+                float inverse = 1.0f / determinant;
+                Vector3 faceU = (edge1 * uv2.Y - edge2 * uv1.Y) * inverse;
+                Vector3 faceV = (edge1 * uv2.X - edge2 * uv1.X) * inverse;
+
+                if (faceU.LengthSquared() <= 1e-20f ||
+                    faceV.LengthSquared() <= 1e-20f)
+                {
+                    continue;
+                }
+
+                faceU = Vector3.Normalize(faceU);
+                faceV = Vector3.Normalize(faceV);
+
+                ushort[] indices = [face.a, face.b, face.c];
+                foreach (ushort index in indices)
+                {
+                    Vector3 normal = normals[index];
+                    if (normal.LengthSquared() <= 1e-20f)
+                        continue;
+
+                    float handedness = Vector3.Dot(
+                        Vector3.Cross(faceU, normal),
+                        faceV);
+
+                    if (!float.IsFinite(handedness) || MathF.Abs(handedness) <= 1e-8f)
+                        continue;
+
+                    float weight = quality * MathF.Abs(handedness);
+
+                    if (handedness > 0.0f)
+                        positiveWeight[index] += weight;
+                    else
+                        negativeWeight[index] += weight;
+                }
+            }
+
+            for (int i = 0; i < positions.Count; i++)
+            {
+                float expected;
+                if (positiveWeight[i] > negativeWeight[i])
+                    expected = 1.0f;
+                else if (negativeWeight[i] > positiveWeight[i])
+                    expected = -1.0f;
+                else
+                    continue;
+
+                Vector3 normal = normals[i];
+                Vector3 u = directionU[i];
+                Vector3 v = directionV[i];
+
+                if (normal.LengthSquared() <= 1e-20f ||
+                    u.LengthSquared() <= 1e-20f ||
+                    v.LengthSquared() <= 1e-20f)
+                {
+                    continue;
+                }
+
+                float calculated = Vector3.Dot(Vector3.Cross(u, normal), v);
+                if (!float.IsFinite(calculated) || MathF.Abs(calculated) <= 1e-8f)
+                    continue;
+
+                float actual = calculated < 0.0f ? -1.0f : 1.0f;
+                if (actual != expected)
+                    directionV[i] = -v;
+            }
+        }
+
         public static bool ImportNewObjPatternUV(FullModelData fm, string filepath)
         {
             Log.Default.Info("Importing new obj with file for UV patterns: {0}", filepath);
@@ -429,7 +544,7 @@ namespace PD2ModelParser.Importers
                         //preloading objects
                         if (!line.StartsWith('#'))
 
-						{
+                        {
                             if (line.StartsWith("o ") || line.StartsWith("g "))
                             {
 
