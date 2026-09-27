@@ -11,15 +11,7 @@ namespace PD2ModelParser.Importers
     {
         public static void Import(FullModelData fmd, string path, bool createModels, Func<string, DM.Object3D> parentFinder, IOptionReceiver opts)
         {
-            GLTF.ModelRoot gltf;
-            try
-            {
-                gltf = GLTF.ModelRoot.Load(path);
-            }
-            catch (SharpGLTF.Validation.DataException)
-            {
-                if (!TryLoadWithoutTangents(path, out gltf)) throw;
-            }
+            GLTF.ModelRoot gltf = GLTF.ModelRoot.Load(path);
 
             var importer = new GltfImporter(fmd);
 
@@ -27,84 +19,6 @@ namespace PD2ModelParser.Importers
             if (preserveSkinsOpt != null)
             {
                 importer.overwriteRigging = bool.Parse(preserveSkinsOpt);
-            }
-
-            static bool TryLoadWithoutTangents(string path, out GLTF.ModelRoot root)
-            {
-                root = null;
-                try
-                {
-                    var data = System.IO.File.ReadAllBytes(path);
-                    if (data.Length < 20) return false;
-
-                    uint magic = BitConverter.ToUInt32(data, 0);
-                    if (magic != 0x46546C67) return false;
-
-                    int offset = 12;
-                    uint chunkLen = BitConverter.ToUInt32(data, offset);
-                    uint chunkType = BitConverter.ToUInt32(data, offset + 4);
-                    offset += 8;
-
-                    if (chunkType != 0x4E4F534A) return false;
-
-                    var json = System.Text.Encoding.UTF8.GetString(data, offset, (int)chunkLen);
-                    var j = Newtonsoft.Json.Linq.JObject.Parse(json);
-                    bool modified = false;
-
-                    if (j["meshes"] is Newtonsoft.Json.Linq.JArray meshes)
-                    {
-                        foreach (var mesh in meshes)
-                        {
-                            if (mesh["primitives"] is not Newtonsoft.Json.Linq.JArray prims) continue;
-
-                            foreach (var prim in prims)
-                            {
-                                if (prim["attributes"] is Newtonsoft.Json.Linq.JObject attrs && attrs.Property("TANGENT") != null)
-                                {
-                                    attrs.Property("TANGENT").Remove();
-                                    modified = true;
-                                }
-                            }
-                        }
-                    }
-
-                    if (!modified) return false;
-
-                    var newJson = j.ToString(Newtonsoft.Json.Formatting.None);
-                    var newJsonBytes = System.Text.Encoding.UTF8.GetBytes(newJson);
-                    int pad = (4 - (newJsonBytes.Length % 4)) % 4;
-                    var padded = new byte[newJsonBytes.Length + pad];
-                    Array.Copy(newJsonBytes, padded, newJsonBytes.Length);
-
-                    using var ms = new System.IO.MemoryStream();
-                    ms.Write(BitConverter.GetBytes(0x46546C67), 0, 4);
-                    ms.Write(BitConverter.GetBytes(2u), 0, 4);
-                    ms.Write(BitConverter.GetBytes(0u), 0, 4);
-                    ms.Write(BitConverter.GetBytes((uint)padded.Length), 0, 4);
-                    ms.Write(BitConverter.GetBytes(0x4E4F534A), 0, 4);
-                    ms.Write(padded, 0, padded.Length);
-
-                    int jsonEnd = offset + (int)chunkLen;
-                    if (jsonEnd < data.Length)
-                    {
-                        ms.Write(data, jsonEnd, data.Length - jsonEnd);
-                    }
-
-                    ms.Seek(8, System.IO.SeekOrigin.Begin);
-                    ms.Write(BitConverter.GetBytes((uint)ms.Length), 0, 4);
-
-                    var tmp = System.IO.Path.Combine(
-                        System.IO.Path.GetTempPath(),
-                        System.IO.Path.GetFileNameWithoutExtension(path) + "_notangent.glb");
-
-                    System.IO.File.WriteAllBytes(tmp, ms.ToArray());
-                    root = GLTF.ModelRoot.Load(tmp);
-                    return true;
-                }
-                catch
-                {
-                    return false;
-                }
             }
 
             string importTransforms = opts.GetOption("import-transforms");
@@ -907,21 +821,13 @@ namespace PD2ModelParser.Importers
             public List<DM.RenderAtom> renderAtoms = [];
             public List<string> materials = [];
 
-            public List<Vector2>[] uv0 =
-            [
-                [],
-                [],
-                [],
-                [],
-                [],
-                [],
-                [],
-                []
-            ];
+            public List<Vector2>[] uv0 = [ [],[],[],[],[],[],[],[] ];
 
             public List<Vector3> weights = [];
             public List<DM.GeometryWeightGroups> weightGroups =
                 [];
+
+            public List<float?> tangentHandedness = [];
 
             public int AppendVertex(Vertex vtx)
             {
@@ -941,6 +847,8 @@ namespace PD2ModelParser.Importers
                 {
                     this.weightGroups.Add(vtx.weightGroups);
                 }
+
+                this.tangentHandedness.Add(vtx.tangentHandedness);
 
                 return idx;
             }
@@ -1003,9 +911,6 @@ namespace PD2ModelParser.Importers
 
                     int primitiveVertexBase = ms.verts.Count;
 
-                    // Preserve the glTF vertex array exactly.
-                    // glTF has already split vertices where attributes differ,
-                    // e.g. UV seams, normals, tangent handedness, etc.
                     foreach (var vertex in vertices)
                     {
                         ms.AppendVertex(vertex);
@@ -1036,6 +941,48 @@ namespace PD2ModelParser.Importers
                         ms.faces,
                         out ms.uvDirectionU,
                         out ms.uvDirectionV);
+
+                    if (ms.normals.Count == ms.verts.Count &&
+                        ms.tangentHandedness.Count == ms.verts.Count)
+                    {
+                        for (int i = 0; i < ms.verts.Count; i++)
+                        {
+                            if (!ms.tangentHandedness[i].HasValue)
+                                continue;
+
+                            Vector3 normal = ms.normals[i];
+                            Vector3 directionU = ms.uvDirectionU[i];
+                            Vector3 directionV = ms.uvDirectionV[i];
+
+                            if (normal.LengthSquared() <= 1e-20f ||
+                                directionU.LengthSquared() <= 1e-20f ||
+                                directionV.LengthSquared() <= 1e-20f)
+                            {
+                                continue;
+                            }
+
+                            float calculatedHandedness = Vector3.Dot(
+                                Vector3.Cross(directionU, normal),
+                                directionV);
+
+                            if (!float.IsFinite(calculatedHandedness) ||
+                                MathF.Abs(calculatedHandedness) <= 1e-8f)
+                            {
+                                continue;
+                            }
+
+                            float calculatedSign =
+                                calculatedHandedness < 0.0f ? -1.0f : 1.0f;
+
+                            float expectedSign =
+                                ms.tangentHandedness[i].Value;
+
+                            if (calculatedSign != expectedSign)
+                            {
+                                ms.uvDirectionV[i] = -directionV;
+                            }
+                        }
+                    }
                 }
 
                 return ms;
@@ -1064,6 +1011,22 @@ namespace PD2ModelParser.Importers
                         (vtx, idx) =>
                         {
                             vtx.normal = na[idx];
+                            return vtx;
+                        });
+                }
+
+                prim.VertexAccessors.TryGetValue("TANGENT", out var tangent);
+
+                if (tangent != null && tangent.Count > 0)
+                {
+                    var ta = tangent.AsVector4Array();
+
+                    result = result.Select(
+                        (vtx, idx) =>
+                        {
+                            vtx.tangentHandedness =
+                                ta[idx].W < 0.0f ? -1.0f : 1.0f;
+
                             return vtx;
                         });
                 }
@@ -1173,53 +1136,15 @@ namespace PD2ModelParser.Importers
             }
         }
 
-        public class Vertex : IEquatable<Vertex>
+        public class Vertex
         {
             public Vector3 pos;
             public Vector3? normal;
-
             public Vector4? vtx_col;
             public Vector2?[] uv = new Vector2?[10];
             public Vector3? weight;
             public DM.GeometryWeightGroups weightGroups;
-
-            public override bool Equals(object obj)
-            {
-                return Equals(obj as Vertex);
-            }
-
-            public bool Equals(Vertex other)
-            {
-                if (other == null) return false;
-
-                return
-                    pos.Equals(other.pos) &&
-                    EqualityComparer<Vector3?>.Default.Equals(normal, other.normal) &&
-                    EqualityComparer<Vector4?>.Default.Equals(vtx_col, other.vtx_col) &&
-                    EqualityComparer<Vector3?>.Default.Equals(weight, other.weight) &&
-                    EqualityComparer<DM.GeometryWeightGroups>.Default.Equals(
-                        weightGroups,
-                        other.weightGroups) &&
-                    uv.SequenceEqual(other.uv);
-            }
-
-            public override int GetHashCode()
-            {
-                var hash = new HashCode();
-
-                hash.Add(pos);
-                hash.Add(normal);
-                hash.Add(vtx_col);
-                hash.Add(weight);
-                hash.Add(weightGroups);
-
-                for (int i = 0; i < uv.Length; i++)
-                {
-                    hash.Add(uv[i]);
-                }
-
-                return hash.ToHashCode();
-            }
+            public float? tangentHandedness;
         }
 
         private void ImportAnimations(GLTF.ModelRoot root)

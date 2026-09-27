@@ -87,7 +87,7 @@ namespace PD2ModelParser
                 @"hash(list|es)(-\d+)?(\.txt)?",
                 RegexOptions.IgnoreCase);
 
-            IEnumerable<string> names = Enumerable.Empty<string>();
+            IEnumerable<string> names = [];
 
             if (!string.IsNullOrWhiteSpace(cwd) && Directory.Exists(cwd))
             {

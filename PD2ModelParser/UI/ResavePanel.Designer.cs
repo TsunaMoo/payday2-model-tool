@@ -68,7 +68,7 @@
             exportBttn.TabIndex = 22;
             exportBttn.Text = "Convert";
             exportBttn.UseVisualStyleBackColor = false;
-            exportBttn.Click += exportBttn_Click;
+            exportBttn.Click += ExportBttn_Click;
             // 
             // richTextBox
             // 

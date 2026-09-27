@@ -23,7 +23,7 @@ namespace PD2ModelParser.UI
             exportBttn.Enabled = inputFileBox.Selected != null;
         }
 
-        private void exportBttn_Click(object sender, EventArgs e)
+        private void ExportBttn_Click(object sender, EventArgs e)
         {
             string inputPath = inputFileBox.Selected;
             if (inputPath == null)
@@ -75,7 +75,7 @@ namespace PD2ModelParser.UI
 
         private static List<string> GetUnknownDataWarnings(FullModelData model)
         {
-            List<string> warnings = new();
+            List<string> warnings = [];
 
             foreach (var pair in model.parsed_sections)
             {

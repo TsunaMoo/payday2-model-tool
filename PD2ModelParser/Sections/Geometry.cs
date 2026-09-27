@@ -655,8 +655,8 @@ namespace PD2ModelParser.Sections
                 accumulatedV[face.c] += faceV;
             }
 
-            directionU = accumulatedU.Select(NormalizeDirection).ToList();
-            directionV = accumulatedV.Select(NormalizeDirection).ToList();
+            directionU = [.. accumulatedU.Select(NormalizeDirection)];
+            directionV = [.. accumulatedV.Select(NormalizeDirection)];
         }
 
         private static Vector3 NormalizeDirection(Vector3 value)
