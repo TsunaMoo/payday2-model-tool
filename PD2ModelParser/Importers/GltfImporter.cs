@@ -1001,41 +1001,27 @@ namespace PD2ModelParser.Importers
                         TriangleCount = (uint)primFaces.Count
                     };
 
-                    var vertexIds = new Dictionary<Vertex, int>();
+                    int primitiveVertexBase = ms.verts.Count;
+
+                    // Preserve the glTF vertex array exactly.
+                    // glTF has already split vertices where attributes differ,
+                    // e.g. UV seams, normals, tangent handedness, etc.
+                    foreach (var vertex in vertices)
+                    {
+                        ms.AppendVertex(vertex);
+                    }
 
                     foreach (var (A, B, C) in primFaces)
                     {
-                        var vtxA = vertices[A];
-                        var vtxB = vertices[B];
-                        var vtxC = vertices[C];
-
-                        if (!vertexIds.TryGetValue(vtxA, out int valueA))
-                        {
-                            valueA = ms.AppendVertex(vtxA);
-                            vertexIds[vtxA] = valueA;
-                        }
-
-                        if (!vertexIds.TryGetValue(vtxB, out int valueB))
-                        {
-                            valueB = ms.AppendVertex(vtxB);
-                            vertexIds[vtxB] = valueB;
-                        }
-
-                        if (!vertexIds.TryGetValue(vtxC, out int valueC))
-                        {
-                            valueC = ms.AppendVertex(vtxC);
-                            vertexIds[vtxC] = valueC;
-                        }
-
                         var df = new DM.Face(
-                            (ushort)valueA,
-                            (ushort)valueB,
-                            (ushort)valueC);
+                            checked((ushort)(primitiveVertexBase + A)),
+                            checked((ushort)(primitiveVertexBase + B)),
+                            checked((ushort)(primitiveVertexBase + C)));
 
                         ms.faces.Add(df);
                     }
 
-                    ra.GeometrySliceLength = (uint)vertexIds.Count;
+                    ra.GeometrySliceLength = (uint)vertices.Count;
                     ms.renderAtoms.Add(ra);
 
                     currentBaseIndex += ra.TriangleCount * 3;

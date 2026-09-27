@@ -29,9 +29,11 @@
         private void InitializeComponent()
         {
             components = new System.ComponentModel.Container();
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(ResavePanel));
             inputFileBox = new FileBrowserControl();
             label1 = new System.Windows.Forms.Label();
             exportBttn = new System.Windows.Forms.Button();
+            richTextBox = new System.Windows.Forms.RichTextBox();
             SuspendLayout();
             // 
             // inputFileBox
@@ -56,10 +58,10 @@
             // 
             // exportBttn
             // 
-            exportBttn.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+            exportBttn.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
             exportBttn.BackColor = System.Drawing.SystemColors.ControlLightLight;
             exportBttn.Enabled = false;
-            exportBttn.Location = new System.Drawing.Point(6, 350);
+            exportBttn.Location = new System.Drawing.Point(6, 41);
             exportBttn.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             exportBttn.Name = "exportBttn";
             exportBttn.Size = new System.Drawing.Size(698, 27);
@@ -68,10 +70,23 @@
             exportBttn.UseVisualStyleBackColor = false;
             exportBttn.Click += exportBttn_Click;
             // 
+            // richTextBox
+            // 
+            richTextBox.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+            richTextBox.BackColor = System.Drawing.SystemColors.ControlLight;
+            richTextBox.Location = new System.Drawing.Point(5, 246);
+            richTextBox.Margin = new System.Windows.Forms.Padding(5);
+            richTextBox.Name = "richTextBox";
+            richTextBox.ReadOnly = true;
+            richTextBox.Size = new System.Drawing.Size(698, 139);
+            richTextBox.TabIndex = 26;
+            richTextBox.Text = resources.GetString("richTextBox.Text");
+            // 
             // ResavePanel
             // 
             AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            Controls.Add(richTextBox);
             Controls.Add(inputFileBox);
             Controls.Add(label1);
             Controls.Add(exportBttn);
@@ -87,5 +102,6 @@
         private FileBrowserControl inputFileBox;
         private System.Windows.Forms.Label label1;
         private System.Windows.Forms.Button exportBttn;
+        private System.Windows.Forms.RichTextBox richTextBox;
     }
 }

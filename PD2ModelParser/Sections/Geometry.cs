@@ -645,7 +645,7 @@ namespace PD2ModelParser.Sections
 
                 float inverse = 1.0f / determinant;
                 Vector3 faceU = (edge1 * uv2.Y - edge2 * uv1.Y) * inverse;
-                Vector3 faceV = (edge2 * uv1.X - edge1 * uv2.X) * inverse;
+                Vector3 faceV = (edge1 * uv2.X - edge2 * uv1.X) * inverse;
 
                 accumulatedU[face.a] += faceU;
                 accumulatedU[face.b] += faceU;
