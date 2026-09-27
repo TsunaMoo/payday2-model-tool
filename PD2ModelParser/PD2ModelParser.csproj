@@ -15,7 +15,7 @@
 		<RuntimeIdentifier>win-x64</RuntimeIdentifier>
 
 		<PublishSingleFile>true</PublishSingleFile>
-		<SelfContained>true</SelfContained>
+		<SelfContained>false</SelfContained>
 		<IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
 
 		<ApplicationIcon>modeltool.ico</ApplicationIcon>
