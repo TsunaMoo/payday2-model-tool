@@ -12,7 +12,6 @@ namespace PD2ModelParser.Importers
         public static void Import(FullModelData fmd, string path, bool createModels, Func<string, DM.Object3D> parentFinder, IOptionReceiver opts)
         {
             GLTF.ModelRoot gltf = GLTF.ModelRoot.Load(path);
-
             var importer = new GltfImporter(fmd);
 
             string preserveSkinsOpt = opts.GetOption("overwrite-rigging");
@@ -942,50 +941,186 @@ namespace PD2ModelParser.Importers
                         out ms.uvDirectionU,
                         out ms.uvDirectionV);
 
-                    if (ms.normals.Count == ms.verts.Count &&
-                        ms.tangentHandedness.Count == ms.verts.Count)
+                    if (ms.normals.Count == ms.verts.Count)
                     {
-                        for (int i = 0; i < ms.verts.Count; i++)
+                        if (ms.tangentHandedness.Any(h => h.HasValue))
                         {
-                            if (!ms.tangentHandedness[i].HasValue)
-                                continue;
+                            FillMissingUvDirections(
+                                ms.faces, ms.normals, ms.tangentHandedness,
+                                ms.uvDirectionU, ms.uvDirectionV);
 
-                            Vector3 normal = ms.normals[i];
-                            Vector3 directionU = ms.uvDirectionU[i];
-                            Vector3 directionV = ms.uvDirectionV[i];
-
-                            if (normal.LengthSquared() <= 1e-20f ||
-                                directionU.LengthSquared() <= 1e-20f ||
-                                directionV.LengthSquared() <= 1e-20f)
+                            for (int i = 0; i < ms.verts.Count; i++)
                             {
-                                continue;
+                                if (!ms.tangentHandedness[i].HasValue)
+                                    continue;
+
+                                Vector3 n = ms.normals[i];
+                                Vector3 u = ms.uvDirectionU[i];
+                                Vector3 v = ms.uvDirectionV[i];
+                                float h = Vector3.Dot(Vector3.Cross(u, n), v);
+
+                                if (float.IsFinite(h) && MathF.Abs(h) > 1e-8f &&
+                                    (h < 0 ? -1.0f : 1.0f) != ms.tangentHandedness[i].Value)
+                                {
+                                    ms.uvDirectionV[i] = -v;
+                                }
                             }
-
-                            float calculatedHandedness = Vector3.Dot(
-                                Vector3.Cross(directionU, normal),
-                                directionV);
-
-                            if (!float.IsFinite(calculatedHandedness) ||
-                                MathF.Abs(calculatedHandedness) <= 1e-8f)
-                            {
-                                continue;
-                            }
-
-                            float calculatedSign =
-                                calculatedHandedness < 0.0f ? -1.0f : 1.0f;
-
-                            float expectedSign =
-                                ms.tangentHandedness[i].Value;
-
-                            if (calculatedSign != expectedSign)
-                            {
-                                ms.uvDirectionV[i] = -directionV;
-                            }
+                        }
+                        else
+                        {
+                            StabilizeUvOrientationRegions(
+                                ms.uv0[0], ms.normals, ms.faces,
+                                ms.uvDirectionU, ms.uvDirectionV);
                         }
                     }
                 }
 
                 return ms;
+            }
+
+            private static void FillMissingUvDirections(
+                IReadOnlyList<DM.Face> faces,
+                IReadOnlyList<Vector3> normals,
+                IReadOnlyList<float?> handedness,
+                IList<Vector3> directionU,
+                IList<Vector3> directionV)
+            {
+                var neighbours = new HashSet<int>[directionU.Count];
+                for (int i = 0; i < neighbours.Length; i++) neighbours[i] = [];
+                foreach (var f in faces)
+                {
+                    neighbours[f.a].Add(f.b); neighbours[f.a].Add(f.c);
+                    neighbours[f.b].Add(f.a); neighbours[f.b].Add(f.c);
+                    neighbours[f.c].Add(f.a); neighbours[f.c].Add(f.b);
+                }
+
+                bool changed;
+                do
+                {
+                    changed = false;
+                    for (int i = 0; i < directionU.Count; i++)
+                    {
+                        if (!handedness[i].HasValue) continue;
+                        if (directionU[i].LengthSquared() > 1e-20f &&
+                            directionV[i].LengthSquared() > 1e-20f) continue;
+
+                        Vector3 sumU = Vector3.Zero, sumV = Vector3.Zero;
+                        int count = 0;
+                        foreach (int n in neighbours[i])
+                        {
+                            if (handedness[n] != handedness[i]) continue;
+                            if (directionU[n].LengthSquared() <= 1e-20f ||
+                                directionV[n].LengthSquared() <= 1e-20f) continue;
+                            sumU += directionU[n];
+                            sumV += directionV[n];
+                            count++;
+                        }
+
+                        if (count == 0) continue;
+                        directionU[i] = Vector3.Normalize(sumU);
+                        directionV[i] = Vector3.Normalize(sumV);
+
+                        float h = Vector3.Dot(
+                            Vector3.Cross(directionU[i], normals[i]), directionV[i]);
+                        if (float.IsFinite(h) && MathF.Abs(h) > 1e-8f &&
+                            (h < 0 ? -1.0f : 1.0f) != handedness[i].Value)
+                        {
+                            directionV[i] = -directionV[i];
+                        }
+                        changed = true;
+                    }
+                } while (changed);
+            }
+
+            private static void StabilizeUvOrientationRegions(
+                IReadOnlyList<Vector2> uvs,
+                IReadOnlyList<Vector3> normals,
+                IReadOnlyList<DM.Face> faces,
+                IList<Vector3> directionU,
+                IList<Vector3> directionV)
+            {
+                const float minUvArea = DM.DieselGeometry.UvDeterminantEpsilon;
+                int count = faces.Count;
+                var sign = new sbyte[count];
+                var neighbours = new List<int>[count];
+                var edges = new Dictionary<(ushort, ushort), List<int>>();
+
+                static (ushort, ushort) Edge(ushort a, ushort b) => a <= b ? (a, b) : (b, a);
+
+                for (int i = 0; i < count; i++)
+                {
+                    neighbours[i] = [];
+                    var f = faces[i];
+                    Vector2 a = uvs[f.a], b = uvs[f.b], c = uvs[f.c];
+                    float det = (b.X - a.X) * (c.Y - a.Y) - (c.X - a.X) * (b.Y - a.Y);
+                    if (float.IsFinite(det) && MathF.Abs(det) >= minUvArea)
+                        sign[i] = det < 0 ? (sbyte)-1 : (sbyte)1;
+
+                    foreach (var edge in new[] { Edge(f.a, f.b), Edge(f.b, f.c), Edge(f.c, f.a) })
+                    {
+                        if (!edges.TryGetValue(edge, out var owners))
+                            edges[edge] = owners = [];
+                        foreach (int other in owners)
+                        {
+                            neighbours[i].Add(other);
+                            neighbours[other].Add(i);
+                        }
+                        owners.Add(i);
+                    }
+                }
+
+                bool changed;
+                do
+                {
+                    changed = false;
+                    var pending = new sbyte[count];
+                    for (int i = 0; i < count; i++)
+                    {
+                        if (sign[i] != 0) continue;
+                        sbyte inherited = 0;
+                        bool conflict = false;
+                        foreach (int n in neighbours[i])
+                        {
+                            if (sign[n] == 0) continue;
+                            if (inherited == 0) inherited = sign[n];
+                            else if (inherited != sign[n]) { conflict = true; break; }
+                        }
+                        if (!conflict) pending[i] = inherited;
+                    }
+                    for (int i = 0; i < count; i++)
+                    {
+                        if (sign[i] == 0 && pending[i] != 0)
+                        {
+                            sign[i] = pending[i];
+                            changed = true;
+                        }
+                    }
+                }
+                while (changed);
+
+                var vertexSign = new sbyte[uvs.Count];
+                for (int i = 0; i < count; i++)
+                {
+                    if (sign[i] == 0) continue;
+                    var f = faces[i];
+                    foreach (int v in new[] { (int)f.a, (int)f.b, (int)f.c })
+                    {
+                        if (vertexSign[v] == 0) vertexSign[v] = sign[i];
+                        else if (vertexSign[v] != sign[i]) vertexSign[v] = 2;
+                    }
+                }
+
+                for (int i = 0; i < vertexSign.Length; i++)
+                {
+                    if (vertexSign[i] is not (1 or -1)) continue;
+                    Vector3 n = normals[i], u = directionU[i], v = directionV[i];
+                    float h = Vector3.Dot(Vector3.Cross(u, n), v);
+                    if (float.IsFinite(h) && MathF.Abs(h) > 1e-8f &&
+                        (h < 0 ? -1 : 1) != vertexSign[i])
+                    {
+                        directionV[i] = -v;
+                    }
+                }
             }
 
             private static IEnumerable<Vertex> GetVerticesFromPrimitive(GLTF.MeshPrimitive prim)
@@ -1136,7 +1271,7 @@ namespace PD2ModelParser.Importers
             }
         }
 
-        public class Vertex
+        public class Vertex : IEquatable<Vertex>
         {
             public Vector3 pos;
             public Vector3? normal;
@@ -1145,6 +1280,21 @@ namespace PD2ModelParser.Importers
             public Vector3? weight;
             public DM.GeometryWeightGroups weightGroups;
             public float? tangentHandedness;
+
+            public bool Equals(Vertex other)
+            {
+                if (other == null) return false;
+
+                return
+                    pos.Equals(other.pos) &&
+                    EqualityComparer<Vector3?>.Default.Equals(normal, other.normal) &&
+                    EqualityComparer<Vector4?>.Default.Equals(vtx_col, other.vtx_col) &&
+                    EqualityComparer<Vector3?>.Default.Equals(weight, other.weight) &&
+                    EqualityComparer<DM.GeometryWeightGroups>.Default.Equals(
+                        weightGroups,
+                        other.weightGroups) &&
+                    uv.SequenceEqual(other.uv);
+            }
         }
 
         private void ImportAnimations(GLTF.ModelRoot root)

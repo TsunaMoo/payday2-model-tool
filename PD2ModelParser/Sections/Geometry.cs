@@ -622,6 +622,8 @@ namespace PD2ModelParser.Sections
             return base.ToString() + " Count: " + vert_count + " Headers: " + Headers.Count + " Verts: " + verts.Count + " UV0: " + Uv0.Count + " UV1: " + Uv1.Count + " Normals: " + normals.Count + " Weight Groups: " + weight_groups.Count + " Weights: " + weights.Count + " UV Direction V: " + uvDirectionV.Count + " UV Direction U: " + uvDirectionU.Count;
         }
 
+        public const float UvDeterminantEpsilon = 1e-6f;
+
         public static void ComputeUvDirections(
             IReadOnlyList<Vector3> positions,
             IReadOnlyList<Vector2> uvs,
@@ -640,7 +642,7 @@ namespace PD2ModelParser.Sections
                 Vector2 uv2 = uvs[face.c] - uvs[face.a];
 
                 float determinant = uv1.X * uv2.Y - uv2.X * uv1.Y;
-                if (!float.IsFinite(determinant) || MathF.Abs(determinant) < 1e-12f)
+                if (!float.IsFinite(determinant) || MathF.Abs(determinant) < UvDeterminantEpsilon)
                     continue;
 
                 float inverse = 1.0f / determinant;
