@@ -33,9 +33,10 @@ namespace PD2ModelParser.Importers
         public static bool ReuseExistingObjects = false;
         private readonly Dictionary<GLTF.Node, DM.Object3D> objectsByNode = [];
         private bool createModels;
-        private bool overwriteRigging;
+        private bool overwriteRigging = true;
         private bool axisConversion = true;
         private readonly List<(GLTF.Node node, DM.Model model)> toSkin = [];
+        private readonly List<(GLTF.Node node, DM.Model model)> toReconstructSkinTransform = [];
         private readonly List<(GLTF.Skin skin, DM.Model model)> toRemap = [];
 
         private readonly float scaleFactor = 100;
@@ -61,6 +62,42 @@ namespace PD2ModelParser.Importers
             foreach (var (node, model) in toSkin)
             {
                 ImportSkin(node, model);
+            }
+
+            foreach (var (node, model) in toReconstructSkinTransform)
+            {
+                if (node.LocalTransform.Matrix != Matrix4x4.Identity || model.SkinBones == null)
+                    continue;
+
+                DM.Object3D skeletonRoot;
+                if (node.Skin.Skeleton != null)
+                {
+                    if (!objectsByNode.TryGetValue(node.Skin.Skeleton, out skeletonRoot))
+                        continue;
+                }
+                else
+                {
+                    skeletonRoot = FindCommonSkeletonRoot(node.Skin, model);
+                    if (skeletonRoot == null)
+                        continue;
+                }
+
+                if (model.Parent != skeletonRoot)
+                    continue;
+
+                Matrix4x4 globalSkinTransform = skeletonRoot.WorldTransform;
+                if (Matrix4x4.Invert(globalSkinTransform, out Matrix4x4 reconstructedModelTransform))
+                {
+                    model.SkinBones.Global_skin_transform = globalSkinTransform;
+                    model.Transform = reconstructedModelTransform;
+                }
+                else
+                {
+                    Log.Default.Warn(
+                        "GltfImporter.ImportTree: Cannot reconstruct skinned model transform for \"{0}\" because skeleton root \"{1}\" has a non-invertible world transform.",
+                        model.Name,
+                        skeletonRoot.Name);
+                }
             }
 
             foreach (var (skin, model) in toRemap)
@@ -208,6 +245,10 @@ namespace PD2ModelParser.Importers
                             if (overwriteRigging)
                             {
                                 toSkin.Add((node, mod));
+                            }
+                            else
+                            {
+                                toReconstructSkinTransform.Add((node, mod));
                             }
 
                             toRemap.Add((node.Skin, mod));
