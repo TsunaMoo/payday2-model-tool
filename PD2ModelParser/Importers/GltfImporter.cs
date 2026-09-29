@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -20,22 +20,21 @@ namespace PD2ModelParser.Importers
                 importer.overwriteRigging = bool.Parse(preserveSkinsOpt);
             }
 
-            string importTransforms = opts.GetOption("import-transforms");
-            if (importTransforms != null)
+            string axisConversion = opts.GetOption("axis-conversion");
+            if (axisConversion != null && bool.TryParse(axisConversion, out bool enabled))
             {
-                _ = bool.TryParse(importTransforms, out importer.importTransforms);
+                importer.axisConversion = enabled;
             }
 
             importer.ImportTree(gltf, createModels, parentFinder);
         }
 
-        public static bool ReuseExistingObjects = false;
-
         private readonly FullModelData data = data;
+        public static bool ReuseExistingObjects = false;
         private readonly Dictionary<GLTF.Node, DM.Object3D> objectsByNode = [];
         private bool createModels;
         private bool overwriteRigging;
-        private bool importTransforms = true;
+        private bool axisConversion = true;
         private readonly List<(GLTF.Node node, DM.Model model)> toSkin = [];
         private readonly List<(GLTF.Skin skin, DM.Model model)> toRemap = [];
 
@@ -56,7 +55,7 @@ namespace PD2ModelParser.Importers
                 catch
                 { }
 
-                ImportNode(node, parent, axisCorrection);
+                ImportNode(node, parent, axisConversion ? axisCorrection : Matrix4x4.Identity);
             }
 
             foreach (var (node, model) in toSkin)
@@ -106,7 +105,15 @@ namespace PD2ModelParser.Importers
             var hashname = HashName.FromNumberOrString(node.Name);
             DM.Object3D obj = null;
 
-            if (ReuseExistingObjects)
+            if (parent != null &&
+                node.VisualParent == null &&
+                node.Mesh == null &&
+                node.PunctualLight == null &&
+                parent.HashName.Hash == hashname.Hash)
+            {
+                obj = parent;
+            }
+            else if (ReuseExistingObjects)
             {
                 obj = data.parsed_sections
                     .Select(i => i.Value as DM.Object3D)
@@ -222,22 +229,19 @@ namespace PD2ModelParser.Importers
                 obj.SetParent(parent);
             }
 
-            if (importTransforms)
+            var lt = node.LocalTransform;
+            var m = lt.Matrix;
+
+            m.M41 *= scaleFactor;
+            m.M42 *= scaleFactor;
+            m.M43 *= scaleFactor;
+
+            if (parentCorrection != Matrix4x4.Identity)
             {
-                var lt = node.LocalTransform;
-                var m = lt.Matrix;
-
-                m.M41 *= scaleFactor;
-                m.M42 *= scaleFactor;
-                m.M43 *= scaleFactor;
-
-                if (parentCorrection != Matrix4x4.Identity)
-                {
-                    m = parentCorrection * m;
-                }
-
-                obj.Transform = m;
+                m = parentCorrection * m;
             }
+
+            obj.Transform = m;
 
             (obj as DM.Model)?.UpdateBounds();
 
@@ -566,6 +570,26 @@ namespace PD2ModelParser.Importers
 
             skinBones.ProbablyRootBone = skeletonRoot;
 
+            bool importedTransformIsIdentity = node.LocalTransform.Matrix == Matrix4x4.Identity;
+
+            if (importedTransformIsIdentity && model.Parent == skeletonRoot)
+            {
+                Matrix4x4 globalSkinTransform = skeletonRoot.WorldTransform;
+
+                if (Matrix4x4.Invert(globalSkinTransform, out Matrix4x4 reconstructedModelTransform))
+                {
+                    skinBones.Global_skin_transform = globalSkinTransform;
+                    model.Transform = reconstructedModelTransform;
+                }
+                else
+                {
+                    Log.Default.Warn(
+                        "GltfImporter.ImportSkin: Cannot reconstruct skinned model transform for \"{0}\" because skeleton root \"{1}\" has a non-invertible world transform.",
+                        model.Name,
+                        skeletonRoot.Name);
+                }
+            }
+
             DM.DieselGeometry geom = model.PassthroughGP.DieselGeometry;
 
             if (geom.weight_groups.Count != geom.vert_count)
@@ -820,7 +844,7 @@ namespace PD2ModelParser.Importers
             public List<DM.RenderAtom> renderAtoms = [];
             public List<string> materials = [];
 
-            public List<Vector2>[] uv0 = [ [],[],[],[],[],[],[],[] ];
+            public List<Vector2>[] uv0 = [[], [], [], [], [], [], [], []];
 
             public List<Vector3> weights = [];
             public List<DM.GeometryWeightGroups> weightGroups =
@@ -1001,24 +1025,43 @@ namespace PD2ModelParser.Importers
                     for (int i = 0; i < directionU.Count; i++)
                     {
                         if (!handedness[i].HasValue) continue;
-                        if (directionU[i].LengthSquared() > 1e-20f &&
-                            directionV[i].LengthSquared() > 1e-20f) continue;
+
+                        float currentULengthSq = directionU[i].LengthSquared();
+                        float currentVLengthSq = directionV[i].LengthSquared();
+                        if (float.IsFinite(currentULengthSq) &&
+                            float.IsFinite(currentVLengthSq) &&
+                            currentULengthSq > 1e-20f &&
+                            currentVLengthSq > 1e-20f) continue;
 
                         Vector3 sumU = Vector3.Zero, sumV = Vector3.Zero;
                         int count = 0;
                         foreach (int n in neighbours[i])
                         {
                             if (handedness[n] != handedness[i]) continue;
-                            if (directionU[n].LengthSquared() <= 1e-20f ||
-                                directionV[n].LengthSquared() <= 1e-20f) continue;
+
+                            float neighbourULengthSq = directionU[n].LengthSquared();
+                            float neighbourVLengthSq = directionV[n].LengthSquared();
+                            if (!float.IsFinite(neighbourULengthSq) ||
+                                !float.IsFinite(neighbourVLengthSq) ||
+                                neighbourULengthSq <= 1e-20f ||
+                                neighbourVLengthSq <= 1e-20f) continue;
+
                             sumU += directionU[n];
                             sumV += directionV[n];
                             count++;
                         }
 
                         if (count == 0) continue;
-                        directionU[i] = Vector3.Normalize(sumU);
-                        directionV[i] = Vector3.Normalize(sumV);
+
+                        float sumULengthSq = sumU.LengthSquared();
+                        float sumVLengthSq = sumV.LengthSquared();
+                        if (!float.IsFinite(sumULengthSq) ||
+                            !float.IsFinite(sumVLengthSq) ||
+                            sumULengthSq <= 1e-20f ||
+                            sumVLengthSq <= 1e-20f) continue;
+
+                        directionU[i] = sumU / MathF.Sqrt(sumULengthSq);
+                        directionV[i] = sumV / MathF.Sqrt(sumVLengthSq);
 
                         float h = Vector3.Dot(
                             Vector3.Cross(directionU[i], normals[i]), directionV[i]);
