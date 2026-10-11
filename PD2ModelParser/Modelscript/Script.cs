@@ -96,6 +96,7 @@ namespace PD2ModelParser.Modelscript
                     "load" => new LoadModel(),
                     "save" => new SaveModel(),
                     "resave" => new Resave(),
+                    "validate" => new ValidateModel(),
                     "patternuv" => new PatternUV(),
                     "export" => new Export(),
                     "exporttype" => new SetDefaultExportType(),

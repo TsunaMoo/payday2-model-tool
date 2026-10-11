@@ -120,6 +120,10 @@ namespace PD2ModelParser
                     v => script.Add(new Resave() { File = v })
                 },
                 {
+                    "validate|check=", "Inspect a .model without changing the file.",
+                    v => script.Add(new ValidateModel() { File = v })
+                },
+                {
                     "o|overwrite", "Overwrite the input for all --resave actions instead of creating .new.model files",
                     v => resaveOverwrite = v != null
                 },
@@ -190,6 +194,8 @@ namespace PD2ModelParser
                 return false;
             }
 
+            // The resave option applies to every --resave action, irrespective of
+            // where the flag appears among the command-line arguments.
             foreach (var resave in script.OfType<Resave>())
                 resave.Overwrite = resaveOverwrite;
 

@@ -72,6 +72,31 @@ namespace PD2ModelParser.Modelscript
         }
     }
 
+    public class ValidateModel : ScriptItem
+    {
+        [Required] public string File { get; set; }
+
+        public override void Execute(ScriptState state)
+        {
+            string path = state.ResolvePath(File);
+            Console.WriteLine($"Validating {path}");
+            try
+            {
+                var (original, repaired, repairs) = S.ModelValidator.CheckFile(path);
+                original.Print("Original file");
+                Console.WriteLine($"\nModel-level metadata repairs available: {repairs}");
+                repaired.Print("After simulated metadata repair (not saved)");
+                if (original.Errors > 0 || repaired.Errors > 0)
+                    Environment.ExitCode = 2;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"ERROR: Cannot validate {path}: {ex.Message}");
+                Environment.ExitCode = 2;
+            }
+        }
+    }
+
     public class Resave : ScriptItem
     {
         [Required] public string File { get; set; }
@@ -108,7 +133,6 @@ namespace PD2ModelParser.Modelscript
 
             if (warnings.Count > 0 && confirmUnknownData != null && !confirmUnknownData(warnings))
                 return null;
-
 
             RebuildGeometricUvDirections(model);
 
