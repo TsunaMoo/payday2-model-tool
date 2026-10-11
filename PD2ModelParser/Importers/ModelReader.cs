@@ -165,6 +165,8 @@ namespace PD2ModelParser.Importers
                 }
             }
 
+            ModelRepair.RepairAll(data);
+
             if (ms.Position < ms.Length)
                 data.leftover_data = br.ReadBytes((int)(ms.Length - ms.Position));
         }
