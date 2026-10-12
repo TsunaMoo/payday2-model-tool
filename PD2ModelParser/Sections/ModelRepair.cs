@@ -7,7 +7,6 @@ namespace PD2ModelParser.Sections
 {
     internal static class ModelRepair
     {
-
         // Stuff to run to repair possible failures.
         public static int RepairAll(FullModelData data)
         {
@@ -43,15 +42,18 @@ namespace PD2ModelParser.Sections
             var topology = gp?.Topology;
             var geometry = gp?.DieselGeometry;
             if (topology == null || geometry == null || model.TopologyIP?.Topology != topology ||
-                topology.facelist == null || topology.facelist.Count == 0 ||
-                geometry.verts == null || geometry.verts.Count == 0 ||
+                topology.DeclaredIndexCount == null ||
+                (ulong)topology.DeclaredIndexCount.Value != (ulong)topology.facelist.Count * 3 ||
+                topology.facelist.Count < 2 || geometry.verts == null || geometry.verts.Count < 3 ||
                 model.RenderAtoms == null || model.RenderAtoms.Count == 0)
                 return false;
 
             ulong totalIndices = (ulong)topology.facelist.Count * 3;
             int vertexCount = geometry.verts.Count;
             var spans = new List<(int Start, int End)>();
-            bool nondegenerate = false;
+            var edges = new HashSet<(int A, int B)>();
+            int validTriangles = 0;
+            int sharedEdges = 0;
 
             foreach (var atom in model.RenderAtoms)
             {
@@ -60,7 +62,9 @@ namespace PD2ModelParser.Sections
 
                 ulong startIndex = atom.BaseIndex;
                 ulong endIndex = startIndex + (ulong)atom.TriangleCount * 3;
-                if (startIndex % 3 != 0 || endIndex > totalIndices)
+                if (startIndex % 3 != 0 || endIndex > totalIndices || atom.GeometrySliceLength == 0 ||
+                    atom.BaseVertex >= (ulong)vertexCount ||
+                    (ulong)atom.BaseVertex + atom.GeometrySliceLength > (ulong)vertexCount)
                     return false;
 
                 int start = (int)(startIndex / 3);
@@ -72,8 +76,11 @@ namespace PD2ModelParser.Sections
                     var face = topology.facelist[i];
                     foreach (int index in new[] { (int)face.a, (int)face.b, (int)face.c })
                     {
-                        local &= (ulong)index + atom.BaseVertex < (ulong)vertexCount;
-                        absolute &= index < vertexCount;
+                        local &= index < atom.GeometrySliceLength &&
+                                 (ulong)index + atom.BaseVertex < (ulong)vertexCount;
+                        absolute &= index >= atom.BaseVertex &&
+                                    (ulong)index - atom.BaseVertex < atom.GeometrySliceLength &&
+                                    index < vertexCount;
                     }
                 }
 
@@ -81,21 +88,51 @@ namespace PD2ModelParser.Sections
                     return false;
 
                 int vertexOffset = local && !absolute ? (int)atom.BaseVertex : 0;
-                for (int i = start; i < end && !nondegenerate; i++)
+                for (int i = start; i < end; i++)
                 {
                     var face = topology.facelist[i];
-                    var a = geometry.verts[(int)face.a + vertexOffset];
-                    var b = geometry.verts[(int)face.b + vertexOffset];
-                    var c = geometry.verts[(int)face.c + vertexOffset];
-                    float areaSquared = Vector3.Cross(b - a, c - a).LengthSquared();
-                    if (float.IsFinite(areaSquared) && areaSquared > 1e-16f)
-                        nondegenerate = true;
+                    int ia = face.a + vertexOffset;
+                    int ib = face.b + vertexOffset;
+                    int ic = face.c + vertexOffset;
+                    if (ia == ib || ib == ic || ic == ia)
+                        continue;
+
+                    var a = geometry.verts[ia];
+                    var b = geometry.verts[ib];
+                    var c = geometry.verts[ic];
+                    if (!float.IsFinite(a.X) || !float.IsFinite(a.Y) || !float.IsFinite(a.Z) ||
+                        !float.IsFinite(b.X) || !float.IsFinite(b.Y) || !float.IsFinite(b.Z) ||
+                        !float.IsFinite(c.X) || !float.IsFinite(c.Y) || !float.IsFinite(c.Z))
+                        continue;
+
+                    var ab = b - a;
+                    var bc = c - b;
+                    var ca = a - c;
+                    float maxEdgeSquared = Math.Max(ab.LengthSquared(), Math.Max(bc.LengthSquared(), ca.LengthSquared()));
+                    float areaSquared = Vector3.Cross(ab, c - a).LengthSquared();
+                    if (!float.IsFinite(maxEdgeSquared) || !float.IsFinite(areaSquared) ||
+                        maxEdgeSquared <= 1e-20f || areaSquared <= 1e-12f * maxEdgeSquared * maxEdgeSquared)
+                        continue;
+
+                    validTriangles++;
+                    var edge = ia < ib ? (ia, ib) : (ib, ia);
+                    if (!edges.Add(edge)) sharedEdges++;
+                    edge = ib < ic ? (ib, ic) : (ic, ib);
+                    if (!edges.Add(edge)) sharedEdges++;
+                    edge = ic < ia ? (ic, ia) : (ia, ic);
+                    if (!edges.Add(edge)) sharedEdges++;
                 }
 
                 spans.Add((start, end));
             }
 
-            if (!nondegenerate || spans.Count == 0)
+            if (validTriangles < 2 || sharedEdges == 0 || spans.Count == 0 ||
+                validTriangles * 4L < (long)topology.facelist.Count * 3)
+                return false;
+
+            if (topology.Primitive_type != Topology.PrimitiveType.PointList &&
+                (validTriangles * 10L < (long)topology.facelist.Count * 9 ||
+                 sharedEdges * 2L < validTriangles))
                 return false;
 
             spans.Sort((a, b) => a.Start.CompareTo(b.Start));
@@ -166,6 +203,5 @@ namespace PD2ModelParser.Sections
 
             return repaired;
         }
-
     }
 }
