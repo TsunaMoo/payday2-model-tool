@@ -14,15 +14,18 @@ namespace PD2ModelParser.Sections
             var models = data.SectionsOfType<Model>().ToList();
             int repaired = 0;
             foreach (var group in models.Where(m => m.Version != 6 &&
-                         m.PassthroughGP?.Topology?.Primitive_type == Topology.PrimitiveType.PointList)
+                         m.PassthroughGP?.Topology is Topology topology &&
+                         (topology.Primitive_type == Topology.PrimitiveType.PointList ||
+                          !Enum.IsDefined(typeof(Topology.PrimitiveType), topology.Primitive_type)))
                          .GroupBy(m => m.PassthroughGP.Topology))
             {
                 if (!group.All(HasTriangleEvidence))
                     continue;
 
+                var originalType = group.Key.Primitive_type;
                 group.Key.Primitive_type = Topology.PrimitiveType.TriangleList;
-                Log.Default.Warn("Repairing .model topology {0}: PointList -> TriangleList ({1} triangles)",
-                    group.Key.SectionId, group.Key.facelist.Count);
+                Log.Default.Warn("Repairing .model topology {0}: {1} -> TriangleList ({2} triangles)",
+                    group.Key.SectionId, originalType, group.Key.facelist.Count);
                 repaired++;
             }
 

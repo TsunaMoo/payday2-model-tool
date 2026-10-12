@@ -62,6 +62,7 @@ namespace PD2ModelParser.Sections
         {
             var r = new ValidationReport { Sections = data.sections.Count };
             CheckSections(data, fileSize, r);
+            CheckTopologies(data, r);
             r.Triangles = data.SectionsOfType<Topology>().Sum(t => (long)t.facelist.Count);
             foreach (var geom in data.SectionsOfType<DieselGeometry>())
                 CheckGeometry(geom, r);
@@ -96,11 +97,21 @@ namespace PD2ModelParser.Sections
                 if (section.Key != section.Value.SectionId)
                     r.Add(ValidationSeverity.Error, "SECTION_ID_MISMATCH", section.Key, $"Object carries ID {section.Value.SectionId}");
                 if (section.Value is Unknown)
-                    r.Add(ValidationSeverity.Info, "UNKNOWN_SECTION", section.Key, "Unknown data is not validated");
+                    r.Add(ValidationSeverity.Info, "UNKNOWN_SECTION", section.Key, "Unknown data is preserved; its contents cannot be validated");
             }
             if (fileSize.HasValue && previousEnd > 0 && previousEnd < fileSize.Value &&
                 data.leftover_data?.Length > 0)
                 r.Add(ValidationSeverity.Info, "TRAILING_BYTES", 0, $"{data.leftover_data.Length} bytes after last section");
+        }
+
+        private static void CheckTopologies(FullModelData data, ValidationReport r)
+        {
+            foreach (var topology in data.SectionsOfType<Topology>())
+            {
+                if (!Enum.IsDefined(typeof(Topology.PrimitiveType), topology.Primitive_type))
+                    r.Add(ValidationSeverity.Error, "INVALID_PRIMITIVE_TYPE", topology.SectionId,
+                        $"Unsupported primitive value 0x{(uint)topology.Primitive_type:X8}; {topology.facelist.Count} triangle records");
+            }
         }
 
         private static void CheckGeometry(DieselGeometry g, ValidationReport r)
@@ -112,7 +123,7 @@ namespace PD2ModelParser.Sections
             if (n != g.vert_count)
                 r.Add(ValidationSeverity.Error, "VERTEX_COUNT", id, $"Header declares {g.vert_count}, position data has {n}");
             foreach (var repeat in g.Headers.GroupBy(h => h.ItemType).Where(h => h.Count() > 1))
-                r.Add(ValidationSeverity.Warning, "REPEATED_CHANNEL", id, $"{repeat.Key} appears {repeat.Count()} times");
+                r.Add(ValidationSeverity.Warning, "REPEATED_CHANNEL", id, $"{repeat.Key} appears {repeat.Count()} times; decoding may overwrite data");
             if (!g.Headers.Any(h => h.ItemType == GeometryChannelTypes.POSITION0))
                 r.Add(ValidationSeverity.Error, "MISSING_POSITION", id, "No POSITION0 channel");
             foreach (var head in g.Headers)
@@ -214,7 +225,7 @@ namespace PD2ModelParser.Sections
             {
                 if (topo.Primitive_type == Topology.PrimitiveType.PointList && model.RenderAtoms.Any(a => a.TriangleCount > 0) && topo.facelist.Count > 0)
                     r.Add(ValidationSeverity.Warning, "POINTLIST_WITH_TRIANGLES", topo.SectionId, $"Model {id} has {topo.facelist.Count} triangle records; inspect possible legacy mislabeling");
-                else
+                else if (Enum.IsDefined(typeof(Topology.PrimitiveType), topo.Primitive_type))
                     r.Add(ValidationSeverity.Info, "NON_TRIANGLE_TOPOLOGY", topo.SectionId, $"{topo.Primitive_type}; triangle-specific checks skipped");
                 return;
             }
@@ -265,7 +276,7 @@ namespace PD2ModelParser.Sections
                 if (badTriangles > 0)
                     r.Add(ValidationSeverity.Error, "TRIANGLE_INDEX_RANGE", id, $"Atom {i}: {badTriangles} triangles cannot fit in the declared vertex slice, first triangle {firstIndex}");
                 else if (local && absolute && a.BaseVertex != 0)
-                    r.Add(ValidationSeverity.Warning, "AMBIGUOUS_INDEX_SPACE", id, $"Atom {i}: local and absolute indices both valid; resave cannot safely determine indexing");
+                    r.Add(ValidationSeverity.Warning, "AMBIGUOUS_INDEX_SPACE", id, $"Atom {i}: local and absolute indices both fit; resave cannot safely determine indexing");
                 else
                 {
                     int offset = local && !absolute ? (int)a.BaseVertex : 0;
@@ -294,7 +305,7 @@ namespace PD2ModelParser.Sections
                 if (zeroArea > 0)
                     r.Add(ValidationSeverity.Warning, "DEGENERATE_TRIANGLES", id, $"Atom {i}: {zeroArea} near-zero-area triangles (geometry {geom.SectionId})");
                 if (degenerateUv > 0)
-                    r.Add(ValidationSeverity.Warning, "DEGENERATE_UV", id, $"Atom {i}: {degenerateUv} triangles have collapsed primary UVs");
+                    r.Add(ValidationSeverity.Warning, "DEGENERATE_UV", id, $"Atom {i}: {degenerateUv} triangles have collapsed primary UVs; geometric directions need fallback");
                 if (a.MaterialId >= (model.MaterialGroup?.Items.Count ?? 0))
                     r.Add(ValidationSeverity.Error, "MATERIAL_SLOT_RANGE", id, $"Atom {i}: material {a.MaterialId}, available slots {model.MaterialGroup?.Items.Count ?? 0}");
             }
