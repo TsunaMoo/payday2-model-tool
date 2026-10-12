@@ -77,7 +77,7 @@
             overwriteCheckBox.Location = new System.Drawing.Point(9, 46);
             overwriteCheckBox.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             overwriteCheckBox.Name = "overwriteCheckBox";
-            overwriteCheckBox.Size = new System.Drawing.Size(148, 19);
+            overwriteCheckBox.Size = new System.Drawing.Size(98, 19);
             overwriteCheckBox.TabIndex = 2;
             overwriteCheckBox.Text = "Overwrite File";
             overwriteCheckBox.UseVisualStyleBackColor = true;
